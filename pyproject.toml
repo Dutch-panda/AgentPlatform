@@ -1,0 +1,20 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "v2-agent-system"
+version = "0.1.0"
+description = "Modular multi-agent architecture using Pydantic AI, Obsidian, and Graphify"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "pydantic>=2.0",
+    "pydantic-ai>=2.57.0",
+    "docker>=7.0.0",
+    "graphifyy>=0.7.14",
+    "python-dotenv>=1.0.0"
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["agents", "tools"]

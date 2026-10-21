@@ -26,7 +26,7 @@ class TaskBrief(BaseModel):
     research_questions: list[str] = Field(description="Key questions for the target lead to investigate, if applicable")
 
 class NatashaRouter:
-    def __init__(self, vault_path: str = "./vault", model_name: str = "openai:gpt-4o"):
+    def __init__(self, vault_path: str = "./vault", model_name: str = "openai-chat:gpt-4o"):
         self.vault_path = Path(vault_path)
         self.tasks_dir = self.vault_path / "tasks"
         self.tasks_dir.mkdir(parents=True, exist_ok=True)

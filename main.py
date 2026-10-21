@@ -29,7 +29,8 @@ async def main() -> None:
 
     print(f"[Orchestrator] Starting V2 Workflow for {task_id}")
 
-    natasha = NatashaRouter()
+    model_name = "openai-chat:gpt-4o"
+    natasha = NatashaRouter(model_name=model_name)
 
     # 3. Natasha Coordinator & Dynamic Router
     task_brief = await natasha.coordinate_request(user_prompt, task_id)
@@ -45,18 +46,18 @@ async def main() -> None:
 
     if target == "odin":
         # Full Research -> Architecture -> Implementation Pipeline
-        research = await OdinResearcher().conduct_research(task_id, objective)
+        research = await OdinResearcher(model_name=model_name).conduct_research(task_id, objective)
         research_context = (
             f"Objective: {objective}\n\nSummary: {research.summary}\n\n"
             "Key findings:\n" + "\n".join(f"- {item}" for item in research.key_findings)
             + "\n\nRecommended stack:\n"
             + "\n".join(f"- {item}" for item in research.recommended_stack)
         )
-        spec = await TaghiArchitect().create_specification(task_id, research_context)
+        spec = await TaghiArchitect(model_name=model_name).create_specification(task_id, research_context)
 
     elif target == "taghi":
         # Skip research, go straight to Architecture Design -> Implementation
-        spec = await TaghiArchitect().create_specification(task_id, objective)
+        spec = await TaghiArchitect(model_name=model_name).create_specification(task_id, objective)
 
     elif target == "meti":
         validation_script = f"validate-{task_id}.sh"
@@ -72,13 +73,13 @@ async def main() -> None:
                 validation_command=f"sh /app/workspace/{validation_script}",
             )
         ]
-        result = await MetiImplementer().execute_specification(task_id, objective, default_phases)
+        result = await MetiImplementer(model_name=model_name).execute_specification(task_id, objective, default_phases)
 
     else:
         raise ValueError(f"Unknown target lead: {target}")
 
     if target in ("odin", "taghi"):
-        result = await MetiImplementer().execute_specification(
+        result = await MetiImplementer(model_name=model_name).execute_specification(
             task_id, spec.architecture_overview, spec.phases,
             required_dependencies=spec.required_dependencies,
         )

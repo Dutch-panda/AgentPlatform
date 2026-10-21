@@ -23,7 +23,7 @@ class ImplementationResult(BaseModel):
     executed_phases: list[str] = Field(description="List of phases that were executed and validated")
 
 class MetiImplementer:
-    def __init__(self, vault_path: str = "./vault", workspace_path: str = "./workspace", model_name: str = "openai:gpt-4o"):
+    def __init__(self, vault_path: str = "./vault", workspace_path: str = "./workspace", model_name: str = "openai-chat:gpt-4o"):
         self.vault_path = Path(vault_path)
         self.code_reviews_dir = self.vault_path / "code-reviews"
         self.code_reviews_dir.mkdir(parents=True, exist_ok=True)

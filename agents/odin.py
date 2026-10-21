@@ -14,7 +14,7 @@ class ResearchReport(BaseModel):
     
 
 class OdinResearcher:
-    def __init__(self, vault_path: str = "./vault", model_name: str = "openai:gpt-4o"):
+    def __init__(self, vault_path: str = "./vault", model_name: str = "openai-chat:gpt-4o"):
         self.vault_path = Path(vault_path)
         self.research_dir = self.vault_path / "research"
         self.research_dir.mkdir(parents=True, exist_ok=True)

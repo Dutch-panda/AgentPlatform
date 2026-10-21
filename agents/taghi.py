@@ -18,7 +18,7 @@ class TechnicalSpec(BaseModel):
     phases: list[ExecutionPhase] = Field(description="Ordered sequential phases for Meti to execute")
 
 class TaghiArchitect:
-    def __init__(self, vault_path: str = "./vault", model_name: str = "openai:gpt-4o"):
+    def __init__(self, vault_path: str = "./vault", model_name: str = "openai-chat:gpt-4o"):
         self.vault_path = Path(vault_path)
         self.specs_dir = self.vault_path / "specs"
         self.specs_dir.mkdir(parents=True, exist_ok=True)

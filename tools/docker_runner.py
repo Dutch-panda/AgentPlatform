@@ -1,4 +1,5 @@
 import os
+import re
 import docker
 from pathlib import Path
 from typing import Dict, Any, Optional
@@ -22,10 +23,21 @@ class DockerSandboxRunner:
         
         self.base_image = base_image
 
-    def execute_code(self, command: str, timeout_seconds: int = 120) -> Dict[str, Any]:
+    def execute_code(self, command: str, timeout_seconds: int = 120, *, task_id: str | None = None) -> Dict[str, Any]:
         """
         Safely executes a shell command inside an isolated container with the workspace mounted.
         """
+        workspace_path = self.workspace_path
+        container_workspace = "/app/workspace"
+        if task_id is not None:
+            if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", task_id):
+                raise ValueError("Task ID must contain only letters, digits, underscores, or hyphens")
+            workspace_path = (self.workspace_path / task_id).resolve()
+            if not workspace_path.is_relative_to(self.workspace_path) or workspace_path == self.workspace_path:
+                raise ValueError("Task workspace must be within the workspace directory")
+            workspace_path.mkdir(parents=True, exist_ok=True)
+            container_workspace = f"/app/workspace/{task_id}"
+
         # Ensure base image is available locally or pull it gracefully
         try:
             self.client.images.get(self.base_image)
@@ -35,8 +47,8 @@ class DockerSandboxRunner:
 
         # Configure volume mapping: host workspace maps to /app/workspace inside container
         volumes = {
-            str(self.workspace_path): {
-                'bind': '/app/workspace',
+            str(workspace_path): {
+                'bind': container_workspace,
                 'mode': 'rw'
             }
         }
@@ -47,11 +59,9 @@ class DockerSandboxRunner:
             container = self.client.containers.create(
                 image=self.base_image,
                 command=["/bin/sh", "-c", command],
-                working_dir="/app/workspace",
+                working_dir=container_workspace,
                 volumes=volumes,
                 network_disabled=False, # Set to True if app doesn't need internet/npm pulls
-                stdout=True,
-                stderr=True,
                 detach=True
             )
             

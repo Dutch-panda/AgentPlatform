@@ -4,17 +4,20 @@ from pathlib import Path
 from datetime import datetime
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent
+from pydantic_ai.models import Model
 from tools.graphify_tool import GraphifyVaultManager
+from tools.project_notes import prepare_project
 
 class ResearchReport(BaseModel):
     task_id: str
+    project_id: str | None = Field(default=None, description="Parent project ID supplied by the caller; null for standalone tasks")
     summary: str = Field(description="Executive summary of research findings")
     key_findings: list[str] = Field(description="Bullet points of technical insights or architectural approaches")
     recommended_stack: list[str] = Field(description="Recommended technologies or packages to use")
     
 
 class OdinResearcher:
-    def __init__(self, vault_path: str = "./vault", model_name: str = "openai-chat:gpt-4o"):
+    def __init__(self, vault_path: str = "./vault", model_name: str | Model = "openai-chat:gpt-4o"):
         self.vault_path = Path(vault_path)
         self.research_dir = self.vault_path / "research"
         self.research_dir.mkdir(parents=True, exist_ok=True)
@@ -61,18 +64,20 @@ class OdinResearcher:
             print(f"[Odin Tool] Wrote note directly to vault: {file_path}")
             return f"Successfully saved note to {file_path}"
 
-    async def conduct_research(self, task_id: str, objective: str) -> ResearchReport:
+    async def conduct_research(self, task_id: str, objective: str, project_id: str | None = None) -> ResearchReport:
         print(f"[Odin] Checking task brief and conducting research for: {task_id}")
         
         if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", task_id):
             raise ValueError("Task ID must contain only letters, digits, underscores, or hyphens")
+        project = prepare_project(self.vault_path, project_id)
         # Double-check task assignment from vault brief if needed
         graph_context = await asyncio.to_thread(self.graph_manager.query_nodes, task_id)
-        prompt = f"Task ID: {task_id}\nObjective: {objective}\nVault Context: {graph_context}"
+        prompt = f"Task ID: {task_id}\n{project.prompt}Objective: {objective}\nVault Context: {graph_context}"
         
         result = await self.agent.run(prompt)
         report = result.output
         report.task_id = task_id
+        report.project_id = project_id
 
         timestamp = datetime.now().strftime("%Y-%m-%d")
         note_filename = self.research_dir / f"research-{task_id}.md"
@@ -82,12 +87,12 @@ id: "research-{task_id}"
 type: "research-report"
 agent: "odin"
 task_id: "{task_id}"
-created_at: "{timestamp}"
+{project.frontmatter}created_at: "{timestamp}"
 links: ["[[{task_id}-brief]]"]
 ---
 # Research Report: {task_id}
 
-## Executive Summary
+{project.body}## Executive Summary
 {report.summary}
 
 ## Key Findings
@@ -103,5 +108,5 @@ links: ["[[{task_id}-brief]]"]
         print(f"[Odin] Saved research report to: {note_filename}")
 
         if not await asyncio.to_thread(self.graph_manager.build_graph, incremental=True):
-            raise RuntimeError(f"Note saved to {note_filename}, but graph update failed")
+            print(f"[Graphify Warning] Note saved to {note_filename}, but graph update failed; continuing without updated graph context")
         return report

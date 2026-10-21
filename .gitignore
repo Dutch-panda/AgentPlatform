@@ -25,3 +25,5 @@ graphify-out/
 # Local system files
 .DS_Store
 *.log
+
+/tests/test_project_notes.py

@@ -6,9 +6,12 @@ from pathlib import Path
 from datetime import datetime
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent
+from pydantic_ai.models import Model
 from tools.graphify_tool import GraphifyVaultManager
+from tools.project_notes import prepare_project
 
 class TaskBrief(BaseModel):
+    project_id: str | None = Field(default=None, description="Parent project ID supplied by the caller; null for standalone tasks")
     task_id: str = Field(default_factory=lambda: f"task-{datetime.now():%Y%m%d}-{uuid.uuid4().hex[:6]}")
     title: str = Field(description="Short concise title of the user request")
     objective: str = Field(description="Detailed objective of what needs to be accomplished")
@@ -26,7 +29,7 @@ class TaskBrief(BaseModel):
     research_questions: list[str] = Field(description="Key questions for the target lead to investigate, if applicable")
 
 class NatashaRouter:
-    def __init__(self, vault_path: str = "./vault", model_name: str = "openai-chat:gpt-4o"):
+    def __init__(self, vault_path: str = "./vault", model_name: str | Model = "openai-chat:gpt-4o"):
         self.vault_path = Path(vault_path)
         self.tasks_dir = self.vault_path / "tasks"
         self.tasks_dir.mkdir(parents=True, exist_ok=True)
@@ -75,14 +78,16 @@ class NatashaRouter:
             print(f"[Natasha Tool] Wrote note directly to vault: {file_path}")
             return f"Successfully saved note to {file_path}"
 
-    async def coordinate_request(self, user_prompt: str, task_id: str) -> TaskBrief:
+    async def coordinate_request(self, user_prompt: str, task_id: str, project_id: str | None = None) -> TaskBrief:
         print(f"[Natasha] Routing prompt for task {task_id}: '{user_prompt}'")
         
         if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", task_id):
             raise ValueError("Task ID must contain only letters, digits, underscores, or hyphens")
-        result = await self.agent.run(f"Task ID: {task_id}\nUser request: {user_prompt}")
+        project = prepare_project(self.vault_path, project_id)
+        result = await self.agent.run(f"Task ID: {task_id}\n{project.prompt}User request: {user_prompt}")
         task_brief = result.output
         task_brief.task_id = task_id
+        task_brief.project_id = project_id
 
         timestamp = datetime.now().strftime("%Y-%m-%d")
         note_filename = self.tasks_dir / f"{task_brief.task_id}-brief.md"
@@ -92,12 +97,12 @@ id: "{task_brief.task_id}"
 type: "task-brief"
 agent: "natasha"
 target_lead: "{task_brief.target_lead}"
-created_at: "{timestamp}"
+{project.frontmatter}created_at: "{timestamp}"
 links: []
 ---
 # Task: {task_brief.title}
 
-## Assignment
+{project.body}## Assignment
 - **Target Lead:** {task_brief.target_lead.upper()}
 
 ## Objective
@@ -112,5 +117,5 @@ links: []
         print(f"[Natasha] Created master task note at: {note_filename}")
 
         if not await asyncio.to_thread(self.graph_manager.build_graph, incremental=True):
-            raise RuntimeError(f"Note saved to {note_filename}, but graph update failed")
+            print(f"[Graphify Warning] Note saved to {note_filename}, but graph update failed; continuing without updated graph context")
         return task_brief

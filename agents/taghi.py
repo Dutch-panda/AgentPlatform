@@ -4,7 +4,9 @@ from pathlib import Path
 from datetime import datetime
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent
+from pydantic_ai.models import Model
 from tools.graphify_tool import GraphifyVaultManager
+from tools.project_notes import prepare_project
 
 class ExecutionPhase(BaseModel):
     phase_name: str = Field(description="Name of phase, e.g., '1-database', '2-backend', '3-frontend', '4-qa'")
@@ -13,12 +15,13 @@ class ExecutionPhase(BaseModel):
 
 class TechnicalSpec(BaseModel):
     task_id: str
+    project_id: str | None = Field(default=None, description="Parent project ID supplied by the caller; null for standalone tasks")
     architecture_overview: str
     required_dependencies: list[str]
     phases: list[ExecutionPhase] = Field(description="Ordered sequential phases for Meti to execute")
 
 class TaghiArchitect:
-    def __init__(self, vault_path: str = "./vault", model_name: str = "openai-chat:gpt-4o"):
+    def __init__(self, vault_path: str = "./vault", model_name: str | Model = "openai-chat:gpt-4o"):
         self.vault_path = Path(vault_path)
         self.specs_dir = self.vault_path / "specs"
         self.specs_dir.mkdir(parents=True, exist_ok=True)
@@ -65,15 +68,25 @@ class TaghiArchitect:
             print(f"[Taghi Tool] Wrote note directly to vault: {file_path}")
             return f"Successfully saved note to {file_path}"
 
-    async def create_specification(self, task_id: str, research_summary: str) -> TechnicalSpec:
+    async def create_specification(self, task_id: str, research_summary: str, project_id: str | None = None) -> TechnicalSpec:
         print(f"[Taghi] Designing architecture and execution phases for task: {task_id}")
 
         if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", task_id):
             raise ValueError("Task ID must contain only letters, digits, underscores, or hyphens")
-        prompt = f"Task ID: {task_id}\nResearch Summary/Findings: {research_summary}"
+        project = prepare_project(self.vault_path, project_id)
+        directory_instruction = f"Create your project directory at workspace/{task_id}/ and place all modules there."
+        prompt = (
+            f"Task ID: {task_id}\n{project.prompt}Research Summary/Findings: {research_summary}\n\n"
+            f"Include this instruction in the specification: {directory_instruction}\n"
+            f"All sandbox commands start in /app/workspace/{task_id}/. "
+            "Keep source files, tests, documentation, validation scripts, and dependencies in this task directory. "
+            "Write validation commands relative to this directory or using its absolute container path."
+        )
         result = await self.agent.run(prompt)
         spec = result.output
         spec.task_id = task_id
+        spec.project_id = project_id
+        spec.architecture_overview = f"{directory_instruction}\n\n{spec.architecture_overview}"
 
         timestamp = datetime.now().strftime("%Y-%m-%d")
         note_filename = self.specs_dir / f"spec-{task_id}.md"
@@ -83,12 +96,12 @@ id: "spec-{task_id}"
 type: "technical-spec"
 agent: "taghi"
 task_id: "{task_id}"
-created_at: "{timestamp}"
+{project.frontmatter}created_at: "{timestamp}"
 links: ["[[research-{task_id}]]", "[[{task_id}-brief]]"]
 ---
 # Technical Specification: {task_id}
 
-## Architecture Overview
+{project.body}## Architecture Overview
 {spec.architecture_overview}
 
 ## Required Dependencies
@@ -106,5 +119,5 @@ links: ["[[research-{task_id}]]", "[[{task_id}-brief]]"]
         print(f"[Taghi] Saved technical specification to: {note_filename}")
 
         if not await asyncio.to_thread(self.graph_manager.build_graph, incremental=True):
-            raise RuntimeError(f"Note saved to {note_filename}, but graph update failed")
+            print(f"[Graphify Warning] Note saved to {note_filename}, but graph update failed; continuing without updated graph context")
         return spec

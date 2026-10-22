@@ -36,8 +36,6 @@ class NatashaRouter:
         self.vault_path = Path(vault_path)
         self.tasks_dir = self.vault_path / "tasks"
         self.tasks_dir.mkdir(parents=True, exist_ok=True)
-        self.research_dir = self.vault_path / "research"
-        self.research_dir.mkdir(parents=True, exist_ok=True)
         self.graph_manager = GraphifyVaultManager(vault_path=str(self.vault_path))
 
         self.agent = Agent(

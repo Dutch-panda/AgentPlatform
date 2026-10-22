@@ -12,10 +12,13 @@ from tools.project_notes import prepare_project
 
 class TaskBrief(BaseModel):
     project_id: str | None = Field(default=None, description="Parent project ID supplied by the caller; null for standalone tasks")
-    task_id: str = Field(default_factory=lambda: f"task-{datetime.now():%Y%m%d}-{uuid.uuid4().hex[:6]}")
+    task_id: str = Field(description="Leave blank, will be populated by orchestrator")
     title: str = Field(description="Short concise title of the user request")
     objective: str = Field(description="Detailed objective of what needs to be accomplished")
     
+    #task naming 
+    slug: str = Field(description="A short, file-safe kebab-case slug summarizing the task, e.g., 'sqlite-db-research'")
+
     # THE ROUTING DECISION
     target_lead: Literal["odin", "taghi", "meti"] = Field(
         description=(

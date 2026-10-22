@@ -16,6 +16,7 @@ from agents.taghi import ExecutionPhase, TaghiArchitect
 from agents.meti import MetiImplementer
 
 async def main() -> None:
+   
     parser = argparse.ArgumentParser(description="Run the multi-agent engineering workflow")
     parser.add_argument("prompt", help="Task description or prompt")
     parser.add_argument("--project", type=validate_project_id, help="Parent project ID, for example my-awesome-app")
@@ -28,19 +29,25 @@ async def main() -> None:
 
     model_name = await get_chatgpt_model()
 
-    # 1. Generate a unique, immutable task ID
-    timestamp = datetime.now().strftime("%Y%m%d")
-    short_hash = uuid.uuid4().hex[:6]
-    task_id = f"task-{timestamp}-{short_hash}"
-
-    print(f"[Orchestrator] Starting V2 Workflow for {task_id}")
-
     natasha = NatashaRouter(model_name=model_name)
 
-    # 3. Natasha Coordinator & Dynamic Router
-    task_brief = await natasha.coordinate_request(user_prompt, task_id, project_id=project_id)
+    #temp placeholder for task ID
+    temp_id = "task-temp"
+    
+    # Natasha Coordinator & Dynamic Router
+    task_brief = await natasha.coordinate_request(user_prompt, temp_id, project_id=project_id)
+    
+    #Generate a unique, immutable task ID based on task brief 
+    timestamp = datetime.now().strftime("%Y%m%d")
+    sanitized_slug = task_brief.slug.lower().replace(" ", "-")
+    short_hash = uuid.uuid4().hex[:6]
+    task_id = f"task-{timestamp}-{sanitized_slug}-{short_hash}"
+
     target = task_brief.target_lead.lower()
 
+    task_brief.task_id = task_id
+
+    print(f"\n[Orchestrator] Generated Structured Task ID: {task_id}")
     print(f"\n[Orchestrator] Natasha routed task to: {target.upper()}\n")
 
     objective = task_brief.objective

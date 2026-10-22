@@ -4,17 +4,17 @@
     "type": "split",
     "children": [
       {
-        "id": "a52b31cb450e222c",
+        "id": "be5d01c127c758eb",
         "type": "tabs",
         "children": [
           {
-            "id": "49dbc6f32f0a68bd",
+            "id": "282fb52c6f6df4aa",
             "type": "leaf",
             "state": {
-              "type": "graph",
+              "type": "empty",
               "state": {},
-              "icon": "lucide-git-fork",
-              "title": "Graph view"
+              "icon": "lucide-file",
+              "title": "New tab"
             }
           }
         ]
@@ -181,6 +181,10 @@
       "bases:Create new base": false
     }
   },
-  "active": "49dbc6f32f0a68bd",
-  "lastOpenFiles": []
+  "active": "282fb52c6f6df4aa",
+  "lastOpenFiles": [
+    "research/research-task-20261021-27feac.md",
+    "tasks/task-20261021-27feac-brief.md",
+    "research/task-20261021-27feac-local-first-sqlite-package.md"
+  ]
 }

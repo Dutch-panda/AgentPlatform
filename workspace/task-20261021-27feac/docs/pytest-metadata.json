@@ -1,0 +1,68 @@
+{
+  "version": "9.1.1",
+  "requires_python": ">=3.10",
+  "requires_dist": [
+    "colorama>=0.4; sys_platform == \"win32\"",
+    "exceptiongroup>=1; python_version < \"3.11\"",
+    "iniconfig>=1.0.1",
+    "packaging>=22",
+    "pluggy<2,>=1.5",
+    "pygments>=2.7.2",
+    "tomli>=1; python_version < \"3.11\"",
+    "argcomplete; extra == \"dev\"",
+    "attrs>=19.2; extra == \"dev\"",
+    "hypothesis>=3.56; extra == \"dev\"",
+    "mock; extra == \"dev\"",
+    "requests; extra == \"dev\"",
+    "setuptools; extra == \"dev\"",
+    "xmlschema; extra == \"dev\""
+  ],
+  "release": [
+    {
+      "comment_text": null,
+      "core-metadata": {
+        "sha256": "c5d032518012789cabc870d46589aca3aeda36cf9fa4399ee88bda3d10438451"
+      },
+      "digests": {
+        "blake2b_256": "24251de2678b631f5a49215c6c96fff41ba892b0a34df68d6d80292b1b48aa7f",
+        "md5": "fd1dd7f62af8bb92733c0d20bcff497e",
+        "sha256": "37a86b45efb9a47a61a36449063e8e18d0cab3161329fc099eb21783169c4f0c"
+      },
+      "downloads": -1,
+      "filename": "pytest-9.1.1-py3-none-any.whl",
+      "has_sig": false,
+      "md5_digest": "fd1dd7f62af8bb92733c0d20bcff497e",
+      "packagetype": "bdist_wheel",
+      "python_version": "py3",
+      "requires_python": ">=3.10",
+      "size": 386536,
+      "upload_time": "2026-06-19T10:58:31",
+      "upload_time_iso_8601": "2026-06-19T10:58:31.347074Z",
+      "url": "https://files.pythonhosted.org/packages/24/25/1de2678b631f5a49215c6c96fff41ba892b0a34df68d6d80292b1b48aa7f/pytest-9.1.1-py3-none-any.whl",
+      "yanked": false,
+      "yanked_reason": null
+    },
+    {
+      "comment_text": null,
+      "core-metadata": false,
+      "digests": {
+        "blake2b_256": "e447b9efed96c114afcfa3c9d3fe98a76a1d14c74a9e266d397cf6eb64be5e01",
+        "md5": "31f635913c0b1bce9438be52d44398a8",
+        "sha256": "1088fbde8f2b49d95a549a195707afa7a76a3ce9bcadc26b6d71f0ffda5fe313"
+      },
+      "downloads": -1,
+      "filename": "pytest-9.1.1.tar.gz",
+      "has_sig": false,
+      "md5_digest": "31f635913c0b1bce9438be52d44398a8",
+      "packagetype": "sdist",
+      "python_version": "source",
+      "requires_python": ">=3.10",
+      "size": 1636369,
+      "upload_time": "2026-06-19T10:58:32",
+      "upload_time_iso_8601": "2026-06-19T10:58:32.857420Z",
+      "url": "https://files.pythonhosted.org/packages/e4/47/b9efed96c114afcfa3c9d3fe98a76a1d14c74a9e266d397cf6eb64be5e01/pytest-9.1.1.tar.gz",
+      "yanked": false,
+      "yanked_reason": null
+    }
+  ]
+}

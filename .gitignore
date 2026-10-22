@@ -8,11 +8,13 @@ venv/
 # Python caches and build output
 __pycache__/
 *.py[cod]
+*.pyc
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
 .coverage
 .coverage.*
+.vscode/
 htmlcov/
 build/
 dist/
@@ -27,3 +29,17 @@ graphify-out/
 *.log
 
 /tests/test_project_notes.py
+
+
+# Workspace code execution outputs
+workspace/*
+
+# Graphify build artifacts
+vault/.graphify/
+
+# Ignore generated markdown content in the vault, but keep the folders
+vault/tasks/*.md
+vault/research/*.md
+vault/specs/*.md
+vault/code-reviews/*.md
+!vault/README.md

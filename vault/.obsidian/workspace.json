@@ -4,11 +4,11 @@
     "type": "split",
     "children": [
       {
-        "id": "be5d01c127c758eb",
+        "id": "af054b2e38bf9e5e",
         "type": "tabs",
         "children": [
           {
-            "id": "282fb52c6f6df4aa",
+            "id": "9369ca9f2f24eb28",
             "type": "leaf",
             "state": {
               "type": "empty",
@@ -181,8 +181,10 @@
       "bases:Create new base": false
     }
   },
-  "active": "282fb52c6f6df4aa",
+  "active": "9369ca9f2f24eb28",
   "lastOpenFiles": [
+    "specs/spec-task-20261022-gym-ai-administration-options-73c5e4.md",
+    "code-reviews/review-task-20261022-gym-ai-administration-options-73c5e4.md",
     "research/research-task-20261021-27feac.md",
     "tasks/task-20261021-27feac-brief.md",
     "research/task-20261021-27feac-local-first-sqlite-package.md"

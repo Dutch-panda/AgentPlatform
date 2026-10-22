@@ -42,4 +42,4 @@ vault/tasks/*.md
 vault/research/*.md
 vault/specs/*.md
 vault/code-reviews/*.md
-!vault/README.md
+!vault/README.mdworkspace/*

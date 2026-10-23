@@ -1,0 +1,2 @@
+User may have requests that needs natasha to fetch data from an URL or Odin needs web acess for deep research. we need to check if agents lack skills in 
+those areas, and handle those lacking skills etiher by adding automatic dynamic skill adding or manually adding necessary skills and plugins for them.

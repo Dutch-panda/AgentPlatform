@@ -12,7 +12,7 @@ Turn engineering requests into structured briefs, research, phased specification
 ![Docker](https://img.shields.io/badge/execution-Docker-2496ED?style=flat-square&logo=docker&logoColor=white)
 ![Obsidian](https://img.shields.io/badge/notes-Obsidian-7C3AED?style=flat-square&logo=obsidian&logoColor=white)
 
-[Quick start](#quick-start) · [Workflow](#how-the-workflow-runs) · [Project memory](#keep-related-tasks-connected) · [Repository](#repository-map)
+[Quick start](#quick-start) · [Workflow](#how-the-workflow-runs) · [Project memory](#keep-related-tasks-connected) · [Repository](#repository-map) · [Troubleshooting](#troubleshooting)
 
 </div>
 
@@ -22,25 +22,14 @@ AP-V2 is a Python CLI that coordinates an engineering team built with Pydantic A
 
 ## How the workflow runs
 
-```mermaid
-flowchart LR
-    U([Your prompt]) --> N["Natasha<br/>Brief & route"]
-    N -->|Research needed| O["Odin<br/>Research & findings"]
-    N -->|Design needed| T["Taghi<br/>Architecture & phases"]
-    N -->|Clear implementation| M["Meti<br/>Build & validate"]
-    O --> T
-    T --> M
-    M --> D["Docker<br/>Execute commands"]
-    D --> V{"All phases<br/>validated?"}
-    V -->|Yes| S([Success])
-    V -->|No| F([Failed result])
+```text
+Prompt → Natasha · brief and routing
+              │
+              ├─ Research → Odin → Taghi → Meti
+              ├─ Design   → Taghi → Meti
+              └─ Build    → Meti
 
-    classDef route fill:#ede9fe,stroke:#7c3aed,color:#312e81
-    classDef build fill:#dbeafe,stroke:#2563eb,color:#1e3a8a
-    classDef done fill:#dcfce7,stroke:#16a34a,color:#14532d
-    class N,O,T route
-    class M,D,V build
-    class S done
+Meti → Docker commands → Phase checks → Result
 ```
 
 - **Natasha — coordinator:** produces a typed task brief and chooses the next lead. Can query existing vault nodes and connections.
@@ -115,21 +104,13 @@ project: "[[projects/task-tracker]]"
 
 Project IDs accept letters, digits, underscores, and hyphens, and must start with a letter or digit. Project grouping links the notes; each run still receives a separate task workspace.
 
-```mermaid
-flowchart TB
-    P["Project note<br/>projects/task-tracker.md"]
-    B[Task briefs] --> P
-    R[Research reports] --> P
-    S[Technical specifications] --> P
-    C[Implementation reviews] --> P
-    B -.-> G["Graphify graph<br/>nodes & connections"]
-    R -.-> G
-    S -.-> G
-    C -.-> G
-    G -.-> A[Agent knowledge queries]
+```text
+Briefs ──────────┐
+Research ────────┤
+Specifications ──┼──→ Shared project note
+Reviews ─────────┘    projects/<project_id>.md
 
-    classDef notes fill:#f3e8ff,stroke:#9333ea,color:#581c87
-    class P,B,R,S,C notes
+Saved notes → Graphify (when available) → Agent queries
 ```
 
 Open **`vault/` as an Obsidian vault** to browse the notes and project wikilinks. Those links work independently of Graphify.
@@ -181,11 +162,36 @@ Generated workspace files, stage notes, and graph artifacts are ignored by Git. 
 └── workspace/                Generated task workspaces
 ```
 
+## Troubleshooting
+
+- **Docker connection fails:** start Docker and confirm `docker info` succeeds in the same terminal. The CLI uses the Docker SDK's environment configuration.
+- **Authentication fails:** check the authorization callback completes and the credential file is readable. `CHATGPT_AUTH_FILE` selects the local credential file; `OPENAI_MODEL` selects the model. An API key alone does not replace this CLI's OAuth flow.
+- **Graph extraction fails:** inspect the logged Graphify error. Extraction runs as `python -m graphify extract <vault>` using the CLI's Python interpreter, with `GRAPHIFY_OUT` pointing to `vault/.graphify`. Each extraction has a 300-second timeout. Saved Markdown remains available if extraction fails.
+- **Dependencies disappear between commands:** install them inside the mounted task directory. Each command starts a new container.
+- **Implementation reports failure:** inspect `vault/code-reviews/review-<task_id>.md` and terminal output. A phase is recorded only when its exact validation command exits successfully with the expected phase name.
+- **A linked note is missing:** research and specification notes exist only when their stages run. The temporary routing-brief issue below also affects task links.
+
+## Development and documentation
+
+The installed distribution is named `v2-agent-system`; run the CLI from the checkout with `python main.py`. There is no installed console-script entry point. Runtime dependencies and Python requirements are declared in [pyproject.toml](pyproject.toml); dependency versions are lower bounds rather than a locked environment.
+
+The agent classes can also be called directly with a `model_name` (model string or Pydantic AI model object) and a `vault_path`. `MetiImplementer` additionally accepts `workspace_path`. The CLI supplies one OAuth-backed model to every stage; these constructor options are not CLI flags.
+
+The repository does not currently track a test suite or CI workflow. Before submitting a change, check the affected routing, artifact paths, project links, and validation behavior. An end-to-end run requires model access and Docker and writes local artifacts; review generated output before using it.
+
+Documentation has three roles:
+
+- This README describes the implemented platform and its operational limits.
+- [Implementation delegation proposal](1746900806.md) and [web access proposal](web-acess) describe future work.
+- `vault/` and `workspace/` contain local run artifacts and examples. Historical reports describe individual runs, not guaranteed platform capabilities. They are not the public platform manual.
+
 ## Current limitations
 
 AP-V2 is version **0.1.0**. These details matter when interpreting its output:
 
 - **Routing brief identity:** Natasha writes `task-temp-brief.md` before the orchestrator assigns the final task ID. The saved brief is not renamed or rewritten, so later task-specific brief links may not resolve and subsequent runs overwrite that temporary brief.
+- **Natasha note-writing tool:** the registered `write_research_note` tool references a `research_dir` attribute that its constructor does not initialize. Calling this optional tool fails; the normal routing-brief writer uses `tasks_dir` separately.
+- **Optional stage links:** specification and review frontmatter can link to skipped stages; a wikilink does not guarantee its target exists.
 - **Container isolation:** network access is enabled, the task directory is writable, and the runner does not configure CPU or memory limits.
 - **Runtime availability:** the default container is a Node image. Python and other runtimes are not provisioned by the runner; tasks that need them must arrange installation or use an adapted image.
 - **Validation scope:** phase completion reflects command exit codes. It does not independently establish test quality or provide a separate human code review.

@@ -1,2 +1,9 @@
-User may have requests that needs natasha to fetch data from an URL or Odin needs web acess for deep research. we need to check if agents lack skills in 
-those areas, and handle those lacking skills etiher by adding automatic dynamic skill adding or manually adding necessary skills and plugins for them.
+# Proposal: web access for research
+
+Status: proposed; not implemented.
+
+Natasha and Odin currently have vault graph lookup tools, but no dedicated URL-fetching or web-search tools. Odin's reports should not be interpreted as verified live web research.
+
+A future capability could retrieve user-provided URLs and search external sources when a task needs current information. Specify source attribution, retrieval failures, and how retrieved content is handled before adding tools.
+
+Automatic skill or plugin installation is an idea for future evaluation; the platform currently does not install missing capabilities dynamically.

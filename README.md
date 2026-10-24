@@ -45,6 +45,13 @@ Agents run sequentially along the selected route. Research requests continue thr
 
 You need **Python 3.11+**, **Docker installed and running**, and a ChatGPT account with access to the configured model through the provider's sign-in flow. Network access is needed for authentication, model calls, and image or dependency downloads. Obsidian is optional for viewing notes.
 
+Clone the repository if you have not already done so:
+
+```bash
+git clone https://github.com/Dutch-panda/AgentPlatform.git
+cd AgentPlatform
+```
+
 From the repository root:
 
 ```bash
@@ -97,11 +104,11 @@ python main.py --resume task-20261024-build-csv-validator-012345abcdef
 
 Replace the example ID with the one printed by your run. Resume reuses the saved prompt, project ID, stage outputs, and `workspace/<task_id>/`. Do not supply a new prompt or `--project` together with `--resume`.
 
-The ledger tracks `PENDING`, `RESEARCHING`, `ARCHITECTING`, `IMPLEMENTING`, `COMPLETED`, and `FAILED`. Completed routing, research, and specification outputs are reused. During implementation, validated phases are skipped and prior validation history is retained. Each explicit resume starts a new numbered run with a fresh three-attempt budget for unfinished phases. A completed task returns without calling a model or rerunning agents.
+The ledger tracks `PENDING`, `RESEARCHING`, `ARCHITECTING`, `IMPLEMENTING`, `COMPLETED`, and `FAILED`. Completed routing, research, and specification outputs are reused. During implementation, validated phases are skipped and prior validation history is retained. A resumed task that proceeds to execution starts a new numbered run with a fresh three-attempt budget for unfinished phases. A completed task returns without calling a model or rerunning agents.
 
 Command checkpoints are saved before execution and after results are recorded. If interruption happens between those points, the CLI reports the command's outcome as unknown. Inspect the workspace and any external side effects before resuming; a container may still be running after an abrupt process exit. An unfinished command or stage may execute again. Resume does **not** guarantee exactly-once execution or restore the entire model conversation; Meti receives the saved plan, validation history, and interrupted-command information in a fresh conversation.
 
-Keep `.state/` and the corresponding task workspace together when backing up or moving a checkout. A missing workspace after implementation has begun causes resume to fail rather than silently discard saved work. Only tasks created with the ledger can be resumed; older vault artifacts are not imported automatically. Local per-task locks prevent concurrent CLI runs of the same task and release when the process exits. Unknown IDs and unreadable checkpoints fail explicitly.
+Back up `.state/`, the corresponding task workspace, and `vault/` together when no workflow is running. Git does not back up the ignored ledger, workspaces, or generated notes. The ledger stores prompts, structured stage outputs, and validation logs locally; it does not replace the generated workspace or vault files. A missing workspace after implementation has begun causes resume to fail rather than silently discard saved work. Only tasks created with the ledger can be resumed; older vault artifacts are not imported automatically. Local per-task locks prevent concurrent CLI runs of the same task and release when the process exits. Unknown IDs and unreadable checkpoints fail explicitly.
 
 ## Keep related tasks connected
 
@@ -118,7 +125,7 @@ Agent Platform creates `vault/projects/task-tracker.md` if needed and preserves 
 project: "[[projects/task-tracker]]"
 ```
 
-Project IDs accept letters, digits, underscores, and hyphens, and must start with a letter or digit. Project grouping links the notes; each run still receives a separate task workspace.
+Project IDs accept letters, digits, underscores, and hyphens, and must start with a letter or digit. Project grouping links the notes. Each new task receives a separate workspace; resumed runs reuse that task’s existing workspace.
 
 ```text
 Briefs ──────────┐
@@ -209,13 +216,18 @@ The review note records each phase's attempt number, command, exit code, capture
 - **Graph extraction fails:** inspect the logged Graphify error. Extraction runs as `python -m graphify extract <vault>` using the CLI's Python interpreter, with `GRAPHIFY_OUT` pointing to `vault/.graphify`. Each extraction has a 300-second timeout. Saved Markdown remains available if extraction fails.
 - **Dependencies disappear between commands:** install them inside the mounted task directory. Each command starts a new container.
 - **Implementation reports failure:** inspect `vault/code-reviews/review-<task_id>.md` and terminal output. A phase is recorded only when its exact validation command exits successfully with the expected phase name.
+- **Unknown task ID on resume:** run from the same repository root and use the permanent ID printed by the CLI. Confirm the original `.state/tasks.db` is present; older tasks created before the ledger cannot be resumed automatically.
+- **Saved workspace is missing:** restore `workspace/<task_id>/` from the same backup as the ledger. A checkpoint records progress, not a copy of generated source files.
+- **Task is already running:** another CLI process holds the task lock. Let it finish or stop that process; a leftover `.lock` file alone does not mean the lock is held. Do not delete lock files to bypass a running task.
+- **Interrupted command outcome is unknown:** inspect the existing files, running containers, and external side effects before resuming. Commands may have partially completed and can run again.
+- **Invalid checkpoint:** preserve the original ledger and restore a consistent backup if available. Do not edit phase completion flags to force a resume; start a new task if the checkpoint cannot be recovered.
 - **A linked note is missing:** research and specification notes exist only when their stages run. New briefs use permanent task IDs; older artifacts may still contain unresolved temporary brief links.
 
 ## Development and documentation
 
 The installed distribution is named `v2-agent-system`; run the CLI from the checkout with `python main.py`. There is no installed console-script entry point. Runtime dependencies and Python requirements are declared in [pyproject.toml](pyproject.toml); dependency versions are lower bounds rather than a locked environment.
 
-The agent classes can also be called directly with a `model_name` (model string or Pydantic AI model object) and a `vault_path`. `MetiImplementer` additionally accepts `workspace_path`. The CLI supplies one OAuth-backed model to every stage; these constructor options are not CLI flags.
+The agent classes can also be called directly with a `model_name` (model string or Pydantic AI model object) and a `vault_path`. `MetiImplementer` additionally accepts `workspace_path`. Programmatic Meti calls can supply `checkpoint`, `checkpoint_callback`, and a new `run_number` to persist and restore implementation progress; the CLI connects these to the ledger automatically. The CLI supplies one OAuth-backed model to every stage; these constructor options are not CLI flags.
 
 ### Testing
 

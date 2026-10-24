@@ -1,6 +1,6 @@
 <div align="center">
 
-# AP-V2 · Agent Platform
+# Agent Platform
 
 ### One prompt. Four agent roles. A connected knowledge trail.
 
@@ -18,7 +18,7 @@ Turn engineering requests into structured briefs, research, phased specification
 
 ---
 
-AP-V2 is a Python CLI that coordinates an engineering team built with Pydantic AI. Natasha selects the entry point for each request; Odin researches, Taghi designs, and Meti implements through Docker commands. Each stage saves Markdown artifacts to a local vault, with Graphify providing graph lookup when extraction is available.
+Agent Platform is a Python CLI that coordinates an engineering team built with Pydantic AI. Natasha selects the entry point for each request; Odin researches, Taghi designs, and Meti implements through Docker commands. Each stage saves Markdown artifacts to a local vault, with Graphify providing graph lookup when extraction is available.
 
 ## How the workflow runs
 
@@ -96,7 +96,7 @@ python main.py "Design a SQLite-backed task tracker" --project task-tracker
 python main.py "Build a CSV import utility for a task tracker" --project task-tracker
 ```
 
-AP-V2 creates `vault/projects/task-tracker.md` if needed and preserves existing project-note content. Produced briefs, reports, specifications, and implementation reviews include a visible project link and frontmatter:
+Agent Platform creates `vault/projects/task-tracker.md` if needed and preserves existing project-note content. Produced briefs, reports, specifications, and implementation reviews include a visible project link and frontmatter:
 
 ```yaml
 project: "[[projects/task-tracker]]"
@@ -115,7 +115,7 @@ Saved notes → Graphify (when available) → Agent queries
 
 Open **`vault/` as an Obsidian vault** to browse the notes and project wikilinks. Those links work independently of Graphify.
 
-Graph updates are attempted after stage artifacts are saved. Graphify Markdown extraction requires its own supported backend; if extraction fails, AP-V2 logs a warning and continues with saved notes. Without a usable graph, knowledge queries may return no context.
+Graph updates are attempted after stage artifacts are saved. Graphify Markdown extraction requires its own supported backend; if extraction fails, Agent Platform logs a warning and continues with saved notes. Without a usable graph, knowledge queries may return no context.
 
 ## What stays on disk
 
@@ -187,7 +187,7 @@ Documentation has three roles:
 
 ## Current limitations
 
-AP-V2 is version **0.1.0**. These details matter when interpreting its output:
+Agent Platform is version **0.1.0**. These details matter when interpreting its output:
 
 - **Routing brief identity:** Natasha writes `task-temp-brief.md` before the orchestrator assigns the final task ID. The saved brief is not renamed or rewritten, so later task-specific brief links may not resolve and subsequent runs overwrite that temporary brief.
 - **Natasha note-writing tool:** the registered `write_research_note` tool references a `research_dir` attribute that its constructor does not initialize. Calling this optional tool fails; the normal routing-brief writer uses `tasks_dir` separately.

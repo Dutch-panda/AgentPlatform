@@ -177,7 +177,18 @@ The installed distribution is named `v2-agent-system`; run the CLI from the chec
 
 The agent classes can also be called directly with a `model_name` (model string or Pydantic AI model object) and a `vault_path`. `MetiImplementer` additionally accepts `workspace_path`. The CLI supplies one OAuth-backed model to every stage; these constructor options are not CLI flags.
 
-The repository does not currently track a test suite or CI workflow. Before submitting a change, check the affected routing, artifact paths, project links, and validation behavior. An end-to-end run requires model access and Docker and writes local artifacts; review generated output before using it.
+Install the test extra and run the local validation command from the repository root:
+
+```bash
+python -m pip install -e '.[test]'
+python scripts/validate.py
+```
+
+The script runs the platform tests in `tests/`; extra pytest arguments can be appended, for example `python scripts/validate.py -k validation`. Test discovery excludes generated workspaces. The suite uses Pydantic AI `TestModel` for structured outputs and `FunctionModel` for scripted tool calls, blocks real model requests, replaces Docker and graph extraction, and writes artifacts in temporary directories. It covers routing contracts, project links, graph retrieval, and phase validation; it does not assess live model routing quality.
+
+The [Platform tests workflow](.github/workflows/tests.yml) runs the same validation command on pushes and pull requests using Ubuntu with Python 3.10 and 3.14. It can also be started manually from GitHub's Actions tab. Results and failure logs appear on the commit or pull request; no model credentials or Docker service are needed. Requiring passing checks before merging is a separate repository setting.
+
+An end-to-end run still requires model access and Docker and writes local artifacts; review generated output before using it.
 
 Documentation has three roles:
 

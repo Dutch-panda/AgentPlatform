@@ -28,9 +28,6 @@ graphify-out/
 .DS_Store
 *.log
 
-/tests/test_project_notes.py
-
-
 # Workspace code execution outputs
 workspace/*
 !workspace/.gitkeep

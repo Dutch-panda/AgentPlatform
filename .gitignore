@@ -1,4 +1,5 @@
 # Local credentials and environments
+.state/
 .env
 .env.*
 !.env.example

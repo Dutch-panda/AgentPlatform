@@ -12,7 +12,7 @@ Turn engineering requests into structured briefs, research, phased specification
 ![Docker](https://img.shields.io/badge/execution-Docker-2496ED?style=flat-square&logo=docker&logoColor=white)
 ![Obsidian](https://img.shields.io/badge/notes-Obsidian-7C3AED?style=flat-square&logo=obsidian&logoColor=white)
 
-[Website](https://dutch-panda.github.io/AgentPlatform/) · [Tests](#testing) · [CI results](https://github.com/Dutch-panda/AgentPlatform/actions/workflows/tests.yml) · [Quick start](#quick-start) · [Workflow](#how-the-workflow-runs) · [Project memory](#keep-related-tasks-connected) · [Repository](#repository-map) · [Troubleshooting](#troubleshooting)
+[Website](https://dutch-panda.github.io/AgentPlatform/) · [Tests](#testing) · [CI results](https://github.com/Dutch-panda/AgentPlatform/actions/workflows/tests.yml) · [Quick start](#quick-start) · [Workflow](#how-the-workflow-runs) · [Resume a task](#resume-a-task) · [Project memory](#keep-related-tasks-connected) · [Repository](#repository-map) · [Troubleshooting](#troubleshooting)
 
 </div>
 
@@ -87,6 +87,22 @@ python main.py --help
 
 The first sandbox command pulls `node:18-bullseye-slim` if it is missing locally. Generated files live in `workspace/<task_id>/`; implementation summaries and phase results are saved under `vault/code-reviews/`. A returned failed implementation makes the CLI exit with status `1`.
 
+## Resume a task
+
+The CLI creates a permanent task ID before routing and prints it for later use. Each run is saved in a local SQLite ledger at `.state/tasks.db`. If a workflow fails or is interrupted, resume it from the same repository root:
+
+```bash
+python main.py --resume task-20261024-build-csv-validator-012345abcdef
+```
+
+Replace the example ID with the one printed by your run. Resume reuses the saved prompt, project ID, stage outputs, and `workspace/<task_id>/`. Do not supply a new prompt or `--project` together with `--resume`.
+
+The ledger tracks `PENDING`, `RESEARCHING`, `ARCHITECTING`, `IMPLEMENTING`, `COMPLETED`, and `FAILED`. Completed routing, research, and specification outputs are reused. During implementation, validated phases are skipped and prior validation history is retained. Each explicit resume starts a new numbered run with a fresh three-attempt budget for unfinished phases. A completed task returns without calling a model or rerunning agents.
+
+Command checkpoints are saved before execution and after results are recorded. If interruption happens between those points, the CLI reports the command's outcome as unknown. Inspect the workspace and any external side effects before resuming; a container may still be running after an abrupt process exit. An unfinished command or stage may execute again. Resume does **not** guarantee exactly-once execution or restore the entire model conversation; Meti receives the saved plan, validation history, and interrupted-command information in a fresh conversation.
+
+Keep `.state/` and the corresponding task workspace together when backing up or moving a checkout. A missing workspace after implementation has begun causes resume to fail rather than silently discard saved work. Only tasks created with the ledger can be resumed; older vault artifacts are not imported automatically. Local per-task locks prevent concurrent CLI runs of the same task and release when the process exits. Unknown IDs and unreadable checkpoints fail explicitly.
+
 ## Keep related tasks connected
 
 Reuse a project ID across requests:
@@ -127,12 +143,14 @@ These references identify retrieved graph context. They do not establish that th
 
 ## What stays on disk
 
-Each run gets an ID shaped like `task-YYYYMMDD-<slug>-<six-character-id>`.
+Each new task gets a permanent ID shaped like `task-YYYYMMDD-<prompt-slug>-<twelve-character-id>`. The slug is derived from the prompt before any model call; resume keeps the same ID.
 
 ```text
+.state/tasks.db                      Local workflow ledger and checkpoints
+.state/<task_id>.lock                Local process lock file (may remain after exit)
 workspace/<task_id>/                  Generated source, tests, docs, dependencies
 vault/
-├── tasks/task-temp-brief.md          Routing brief (see limitation below)
+├── tasks/<task_id>-brief.md          Routing brief with the permanent task ID
 ├── research/research-<task_id>.md     Research report, when Odin runs
 ├── specs/spec-<task_id>.md            Specification, when Taghi runs
 ├── code-reviews/review-<task_id>.md   Implementation summary and validated phases
@@ -140,14 +158,14 @@ vault/
 └── .graphify/graph.json              Knowledge graph, when available
 ```
 
-Generated workspace files, stage notes, and graph artifacts are ignored by Git. Project notes under `vault/projects/` are **not currently ignored**; review them before committing.
+The local `.state/` directory, generated workspace files, stage notes, and graph artifacts are ignored by Git. Project notes under `vault/projects/` are **not currently ignored**; review them before committing.
 
 ## Execution and validation
 
 - Each command runs in a **fresh Docker container**, with only the task directory mounted at `/app/workspace/<task_id>/`.
 - Files in that mount persist across commands. Container-local installs and changes outside it do not; keep durable dependencies in the mounted directory.
 - Each phase must pass its **exact validation command**, submitted separately with its phase name, in the declared order. Successful command exit codes are recorded as validation results.
-- Failed phase validation returns combined stdout/stderr to Meti with the remaining attempt count. Meti can repair and rerun the same check, up to **three validation attempts per phase** (one initial attempt and two retries). The third failure stops execution before more sandbox commands or later phases.
+- Failed phase validation returns combined stdout/stderr to Meti with the remaining attempt count. Meti can repair and rerun the same check, up to **three validation attempts per phase per run** (one initial attempt and two retries). The third failure stops execution before more sandbox commands or later phases.
 - Straightforward tasks receive a fast-track phase that asks Meti to create and run a task-specific validation script.
 - The runner defaults to a **120-second wait timeout** per command and removes the container after execution.
 
@@ -157,7 +175,7 @@ When a validation command fails, Meti receives its output and can issue repair c
 
 If the model returns a final response while a failed phase still has attempts remaining, the application sends the failure logs back into the same conversation. If that recovery round returns without another validation attempt, the run ends as failed rather than repeatedly asking without progress. Model-run errors and retry exhaustion also produce a failed review note.
 
-The review note records each phase's attempt number, command, exit code, captured output, and final resolution: passed, passed on retry, retry limit exhausted, stopped early, or not validated. Docker wait/execution errors preserve available container logs; image acquisition errors return failure feedback. This is bounded recovery within a run, not checkpoint/resume support or a guarantee that an autonomous repair will succeed.
+The review note records each phase's attempt number, command, exit code, captured output, and final resolution: passed, passed on retry, retry limit exhausted, stopped early, or not validated. Docker wait/execution errors preserve available container logs; image acquisition errors return failure feedback. This is bounded recovery within a run; `--resume` reuses saved progress and starts a new run budget. Neither mechanism guarantees that an autonomous repair will succeed.
 
 ## Repository map
 
@@ -173,7 +191,8 @@ The review note records each phase's attempt number, command, exit code, capture
 │   ├── chatgpt_auth.py        OAuth credential storage and model setup
 │   ├── docker_runner.py      Container lifecycle and workspace mounts
 │   ├── graphify_tool.py      Graph extraction, node search, and neighbors
-│   └── project_notes.py      Project IDs, note creation, and shared links
+│   ├── project_notes.py      Project IDs, note creation, and shared links
+│   └── task_ledger.py        SQLite checkpoints and per-task process locks
 ├── .github/workflows/tests.yml  Automated platform tests
 ├── tests/                    Deterministic platform tests
 ├── scripts/validate.py        Local test runner
@@ -190,7 +209,7 @@ The review note records each phase's attempt number, command, exit code, capture
 - **Graph extraction fails:** inspect the logged Graphify error. Extraction runs as `python -m graphify extract <vault>` using the CLI's Python interpreter, with `GRAPHIFY_OUT` pointing to `vault/.graphify`. Each extraction has a 300-second timeout. Saved Markdown remains available if extraction fails.
 - **Dependencies disappear between commands:** install them inside the mounted task directory. Each command starts a new container.
 - **Implementation reports failure:** inspect `vault/code-reviews/review-<task_id>.md` and terminal output. A phase is recorded only when its exact validation command exits successfully with the expected phase name.
-- **A linked note is missing:** research and specification notes exist only when their stages run. The temporary routing-brief issue below also affects task links.
+- **A linked note is missing:** research and specification notes exist only when their stages run. New briefs use permanent task IDs; older artifacts may still contain unresolved temporary brief links.
 
 ## Development and documentation
 
@@ -207,7 +226,7 @@ python -m pip install -e '.[test]'
 python scripts/validate.py
 ```
 
-The script runs the platform tests in `tests/`; extra pytest arguments can be appended, for example `python scripts/validate.py -k validation`. Test discovery excludes generated workspaces. The suite uses Pydantic AI `TestModel` for structured outputs and `FunctionModel` for scripted tool calls, blocks real model requests, replaces Docker and graph extraction, and writes artifacts in temporary directories. It covers routing contracts, project links, graph retrieval, source resolution and report references, phase validation, bounded recovery, and Docker failure feedback; it does not assess live model routing quality.
+The script runs the platform tests in `tests/`; extra pytest arguments can be appended, for example `python scripts/validate.py -k validation`. Test discovery excludes generated workspaces. The suite uses Pydantic AI `TestModel` for structured outputs and `FunctionModel` for scripted tool calls, blocks real model requests, replaces Docker and graph extraction, and writes artifacts in temporary directories. It covers routing contracts, project links, graph retrieval, source resolution and report references, phase validation, bounded recovery, Docker failure feedback, ledger persistence, and resume behavior; it does not assess live model routing quality.
 
 The [Platform tests workflow](.github/workflows/tests.yml) runs the same validation command on pushes and pull requests using Ubuntu with Python 3.11 and 3.14. Open [CI results](https://github.com/Dutch-panda/AgentPlatform/actions/workflows/tests.yml) to inspect runs. To start a manual run, select **Run workflow**, choose a branch, and confirm. Results and failure logs appear on the commit or pull request; no model credentials or Docker service are needed. Requiring passing checks before merging is a separate repository setting.
 
@@ -223,7 +242,6 @@ Documentation has three roles:
 
 Agent Platform is version **0.1.0**. These details matter when interpreting its output:
 
-- **Routing brief identity:** Natasha writes `task-temp-brief.md` before the orchestrator assigns the final task ID. The saved brief is not renamed or rewritten, so later task-specific brief links may not resolve and subsequent runs overwrite that temporary brief.
 - **Natasha note-writing tool:** the registered `write_research_note` tool references a `research_dir` attribute that its constructor does not initialize. Calling this optional tool fails; the normal routing-brief writer uses `tasks_dir` separately.
 - **Optional stage links:** specification and review frontmatter can link to skipped stages; a wikilink does not guarantee its target exists.
 - **Container isolation:** network access is enabled, the task directory is writable, and the runner does not configure CPU or memory limits.

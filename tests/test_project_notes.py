@@ -65,6 +65,7 @@ class ProjectNotesTests(unittest.IsolatedAsyncioTestCase):
                 agent.agent = SimpleNamespace(run=AsyncMock(return_value=SimpleNamespace(output=model.model_copy(deep=True))))
                 agent.graph_manager = Mock()
                 agent.graph_manager.query_nodes.return_value = []
+                agent.graph_manager.resolve_note_sources.return_value = []
                 result = await getattr(agent, method)(*arguments(task_id), project_id=project_id)
                 self.assertEqual(result.task_id, task_id)
                 self.assertEqual(result.project_id, project_id)

@@ -82,7 +82,8 @@ class GraphifyVaultManager:
         
         matches = [
             node for node in nodes 
-            if term in node.get("id", "").lower() or term in str(node.get("properties", "")).lower()
+            if any(term in str(node.get(key, "")).lower()
+                   for key in ("id", "label", "source_file", "properties"))
         ]
         return matches
 
@@ -104,6 +105,25 @@ class GraphifyVaultManager:
                 neighbor_ids.add(source)
                 
         return [nodes[nid] for nid in neighbor_ids if nid in nodes]
+
+    def resolve_note_sources(self, nodes: List[Dict[str, Any]]) -> list[str]:
+        """Resolve Graphify source files to existing Markdown paths within this vault."""
+        sources = set()
+        for node in nodes:
+            properties = node.get("properties")
+            properties = properties if isinstance(properties, dict) else {}
+            source = node.get("source_file") or properties.get("source_file")
+            if not isinstance(source, str) or not source.strip():
+                continue
+            try:
+                path = Path(source)
+                path = (self.vault_path / path).resolve() if not path.is_absolute() else path.resolve()
+                if path.is_relative_to(self.vault_path) and path.suffix.lower() == ".md" and path.is_file():
+                    sources.add(path.relative_to(self.vault_path).as_posix())
+            except (OSError, ValueError, RuntimeError):
+                # Stale or malformed graph paths must not prevent saving a report.
+                continue
+        return sorted(sources)
 
 # Quick standalone test execution block
 if __name__ == "__main__":

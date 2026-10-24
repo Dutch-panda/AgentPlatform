@@ -33,7 +33,7 @@ Meti → Docker commands → Phase checks → Result
 ```
 
 - **Natasha — coordinator:** produces a typed task brief and chooses the next lead. Can query existing vault nodes and connections.
-- **Odin — researcher:** uses vault context to produce findings and a recommended stack. The current agent has vault tools; no dedicated web-search tool is registered.
+- **Odin — researcher:** searches vault graph metadata and related nodes to produce findings and a recommended stack. Research notes automatically list resolved source notes. The current agent has vault tools; no dedicated web-search tool is registered.
 - **Taghi — architect:** produces an architecture overview, dependencies, and ordered execution phases with explicit validation commands.
 - **Meti — implementer:** writes code through Docker commands and validates phases in order. A reported success is downgraded to failure if any phase remains unvalidated.
 
@@ -117,6 +117,14 @@ Open **`vault/` as an Obsidian vault** to browse the notes and project wikilinks
 
 Graph updates are attempted after stage artifacts are saved. Graphify Markdown extraction requires its own supported backend; if extraction fails, Agent Platform logs a warning and continues with saved notes. Without a usable graph, knowledge queries may return no context.
 
+### Research source references
+
+Odin records nodes retrieved from its initial task lookup and its search and neighbor-query tools. Search matches node IDs, labels, source-file paths, and properties. Each saved research report includes a **Related vault sources** section with relative Markdown links and corresponding wikilinks in its `links` frontmatter.
+
+Source paths come from Graphify's `source_file` metadata, including that field inside `properties` when present. Only existing Markdown files inside the vault are listed; duplicate paths are removed, and missing files or paths outside the vault are omitted. The returned `ResearchReport.vault_sources` contains the same vault-relative paths, overriding any model-generated list.
+
+These references identify retrieved graph context. They do not establish that the full source notes were read or that each finding is supported by a particular note. If no source files can be resolved, the report states that explicitly. Graph extraction still requires a working Graphify backend.
+
 ## What stays on disk
 
 Each run gets an ID shaped like `task-YYYYMMDD-<slug>-<six-character-id>`.
@@ -190,7 +198,7 @@ python -m pip install -e '.[test]'
 python scripts/validate.py
 ```
 
-The script runs the platform tests in `tests/`; extra pytest arguments can be appended, for example `python scripts/validate.py -k validation`. Test discovery excludes generated workspaces. The suite uses Pydantic AI `TestModel` for structured outputs and `FunctionModel` for scripted tool calls, blocks real model requests, replaces Docker and graph extraction, and writes artifacts in temporary directories. It covers routing contracts, project links, graph retrieval, and phase validation; it does not assess live model routing quality.
+The script runs the platform tests in `tests/`; extra pytest arguments can be appended, for example `python scripts/validate.py -k validation`. Test discovery excludes generated workspaces. The suite uses Pydantic AI `TestModel` for structured outputs and `FunctionModel` for scripted tool calls, blocks real model requests, replaces Docker and graph extraction, and writes artifacts in temporary directories. It covers routing contracts, project links, graph retrieval, source resolution and report references, and phase validation; it does not assess live model routing quality.
 
 The [Platform tests workflow](.github/workflows/tests.yml) runs the same validation command on pushes and pull requests using Ubuntu with Python 3.11 and 3.14. Open [CI results](https://github.com/Dutch-panda/AgentPlatform/actions/workflows/tests.yml) to inspect runs. To start a manual run, select **Run workflow**, choose a branch, and confirm. Results and failure logs appear on the commit or pull request; no model credentials or Docker service are needed. Requiring passing checks before merging is a separate repository setting.
 

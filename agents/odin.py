@@ -1,12 +1,22 @@
 import asyncio
 import re
+import json
+import os
+from dataclasses import dataclass, field
 from pathlib import Path
 from datetime import datetime
+from urllib.parse import quote
 from pydantic import BaseModel, Field
-from pydantic_ai import Agent
+from pydantic_ai import Agent, RunContext
 from pydantic_ai.models import Model
 from tools.graphify_tool import GraphifyVaultManager
 from tools.project_notes import prepare_project
+
+
+@dataclass
+class ResearchContext:
+    retrieved_nodes: list[dict] = field(default_factory=list)
+
 
 class ResearchReport(BaseModel):
     task_id: str
@@ -14,6 +24,7 @@ class ResearchReport(BaseModel):
     summary: str = Field(description="Executive summary of research findings")
     key_findings: list[str] = Field(description="Bullet points of technical insights or architectural approaches")
     recommended_stack: list[str] = Field(description="Recommended technologies or packages to use")
+    vault_sources: list[str] = Field(default_factory=list, description="Vault-relative note paths; populated from retrieved graph results by the application")
     
 
 class OdinResearcher:
@@ -27,28 +38,35 @@ class OdinResearcher:
         self.agent = Agent(
             model_name,
             output_type=ResearchReport,
+            deps_type=ResearchContext,
             system_prompt=(
                 "You are Odin, the Research Lead. You have access to vault graph tools. "
-                "Use them to query related concepts before writing your final research report."
+                "Use them to query related concepts and their relationships before writing your final research report. "
+                "Graph results are historical context, not independently verified facts or full note contents. "
+                "The application records resolved source notes automatically; do not invent source paths."
             )
         )
 
         # --- BINDING TOOLS TO Odin ---
-        @self.agent.tool_plain
-        def query_vault_knowledge(search_term: str) -> list[dict]:
+        @self.agent.tool
+        def query_vault_knowledge(ctx: RunContext[ResearchContext], search_term: str) -> list[dict]:
             """
             Search the Obsidian vault graph for existing nodes, tasks, or past specs matching a term.
             """
             print(f"[Odin Tool Called] Searching graph for: {search_term}")
-            return self.graph_manager.query_nodes(search_term)
+            nodes = self.graph_manager.query_nodes(search_term)
+            ctx.deps.retrieved_nodes.extend(nodes)
+            return nodes
 
-        @self.agent.tool_plain
-        def get_related_notes(node_id: str) -> list[dict]:
+        @self.agent.tool
+        def get_related_notes(ctx: RunContext[ResearchContext], node_id: str) -> list[dict]:
             """
             Get direct neighbor connections for a specific note ID in the vault graph.
             """
             print(f"[Odin Tool Called] Finding neighbors for node: {node_id}")
-            return self.graph_manager.get_neighbors(node_id)
+            nodes = self.graph_manager.get_neighbors(node_id)
+            ctx.deps.retrieved_nodes.extend(nodes)
+            return nodes
         
         @self.agent.tool_plain
         def write_research_note(filename: str, content: str) -> str:
@@ -72,15 +90,19 @@ class OdinResearcher:
         project = prepare_project(self.vault_path, project_id)
         # Double-check task assignment from vault brief if needed
         graph_context = await asyncio.to_thread(self.graph_manager.query_nodes, task_id)
+        context = ResearchContext(retrieved_nodes=list(graph_context))
         prompt = f"Task ID: {task_id}\n{project.prompt}Objective: {objective}\nVault Context: {graph_context}"
         
-        result = await self.agent.run(prompt)
+        result = await self.agent.run(prompt, deps=context)
         report = result.output
         report.task_id = task_id
         report.project_id = project_id
+        report.vault_sources = self.graph_manager.resolve_note_sources(context.retrieved_nodes)
 
         timestamp = datetime.now().strftime("%Y-%m-%d")
         note_filename = self.research_dir / f"research-{task_id}.md"
+        source_links = [f"[[{Path(source).with_suffix('').as_posix()}]]" for source in report.vault_sources]
+        links = json.dumps([f"[[{task_id}-brief]]", *source_links], ensure_ascii=False)
 
         markdown_content = f"""---
 id: "research-{task_id}"
@@ -88,7 +110,7 @@ type: "research-report"
 agent: "odin"
 task_id: "{task_id}"
 {project.frontmatter}created_at: "{timestamp}"
-links: ["[[{task_id}-brief]]"]
+links: {links}
 ---
 # Research Report: {task_id}
 
@@ -103,6 +125,17 @@ links: ["[[{task_id}-brief]]"]
         markdown_content += "\n## Recommended Stack\n"
         for item in report.recommended_stack:
             markdown_content += f"- {item}\n"
+
+        markdown_content += "\n## Related vault sources\n"
+        if report.vault_sources:
+            markdown_content += "\nSource notes resolved from retrieved graph context; these are not claim-level citations or evidence that full notes were read.\n\n"
+            for source in report.vault_sources:
+                path = self.vault_path / source
+                relative = Path(os.path.relpath(path, note_filename.parent)).as_posix()
+                label = source.replace("\\", "\\\\").replace("[", "\\[").replace("]", "\\]").replace("\n", " ").replace("\r", " ")
+                markdown_content += f"- [{label}]({quote(relative, safe='/')})\n"
+        else:
+            markdown_content += "\nNo source notes could be resolved from the retrieved graph context.\n"
 
         note_filename.write_text(markdown_content, encoding="utf-8")
         print(f"[Odin] Saved research report to: {note_filename}")

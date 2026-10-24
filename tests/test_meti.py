@@ -77,7 +77,9 @@ def test_failed_validation_does_not_advance_phase(tmp_path, sandbox, phases, san
     result = asyncio.run(meti.execute_specification("task-csv", "CSV module", phases))
     assert result.status == "failed" and result.executed_phases == []
     sandbox.execute_code.assert_called_once_with("sh validate-1.sh", task_id="task-csv")
-    assert returns[0] == sandbox_result
+    assert returns[0]["output"] == sandbox_result["output"]
+    assert returns[0]["validation_attempt"] == 1
+    assert returns[0]["attempts_remaining"] == 2
     assert returns[1]["success"] is False
 
 

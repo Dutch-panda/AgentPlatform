@@ -38,13 +38,6 @@ class DockerSandboxRunner:
             workspace_path.mkdir(parents=True, exist_ok=True)
             container_workspace = f"/app/workspace/{task_id}"
 
-        # Ensure base image is available locally or pull it gracefully
-        try:
-            self.client.images.get(self.base_image)
-        except docker.errors.ImageNotFound:
-            print(f"[DockerRunner] Image {self.base_image} not found locally. Pulling from Docker Hub...")
-            self.client.images.pull(self.base_image)
-
         # Configure volume mapping: host workspace maps to /app/workspace inside container
         volumes = {
             str(workspace_path): {
@@ -55,6 +48,11 @@ class DockerSandboxRunner:
 
         container = None
         try:
+            try:
+                self.client.images.get(self.base_image)
+            except docker.errors.ImageNotFound:
+                print(f"[DockerRunner] Image {self.base_image} not found locally. Pulling from Docker Hub...")
+                self.client.images.pull(self.base_image)
             # Create and run container safely with resource restrictions
             container = self.client.containers.create(
                 image=self.base_image,
@@ -81,10 +79,16 @@ class DockerSandboxRunner:
             }
 
         except Exception as e:
+            logs = ""
+            if container:
+                try:
+                    logs = container.logs(stdout=True, stderr=True).decode('utf-8', errors='replace')
+                except Exception:
+                    pass
             return {
                 "success": False,
                 "exit_code": -1,
-                "output": f"[DockerRunner Execution Error]: {str(e)}"
+                "output": f"[DockerRunner Execution Error]: {str(e)}\n{logs}"
             }
             
         finally:

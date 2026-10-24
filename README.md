@@ -147,8 +147,17 @@ Generated workspace files, stage notes, and graph artifacts are ignored by Git. 
 - Each command runs in a **fresh Docker container**, with only the task directory mounted at `/app/workspace/<task_id>/`.
 - Files in that mount persist across commands. Container-local installs and changes outside it do not; keep durable dependencies in the mounted directory.
 - Each phase must pass its **exact validation command**, submitted separately with its phase name, in the declared order. Successful command exit codes are recorded as validation results.
+- Failed phase validation returns combined stdout/stderr to Meti with the remaining attempt count. Meti can repair and rerun the same check, up to **three validation attempts per phase** (one initial attempt and two retries). The third failure stops execution before more sandbox commands or later phases.
 - Straightforward tasks receive a fast-track phase that asks Meti to create and run a task-specific validation script.
 - The runner defaults to a **120-second wait timeout** per command and removes the container after execution.
+
+### Recovery and attempt history
+
+When a validation command fails, Meti receives its output and can issue repair commands before retrying that phase. Rejected calls with the wrong phase or validation command do not consume an attempt. Running an exact declared validation command without its phase name is rejected. Repair commands are separate from the three-attempt validation budget.
+
+If the model returns a final response while a failed phase still has attempts remaining, the application sends the failure logs back into the same conversation. If that recovery round returns without another validation attempt, the run ends as failed rather than repeatedly asking without progress. Model-run errors and retry exhaustion also produce a failed review note.
+
+The review note records each phase's attempt number, command, exit code, captured output, and final resolution: passed, passed on retry, retry limit exhausted, stopped early, or not validated. Docker wait/execution errors preserve available container logs; image acquisition errors return failure feedback. This is bounded recovery within a run, not checkpoint/resume support or a guarantee that an autonomous repair will succeed.
 
 ## Repository map
 
@@ -198,7 +207,7 @@ python -m pip install -e '.[test]'
 python scripts/validate.py
 ```
 
-The script runs the platform tests in `tests/`; extra pytest arguments can be appended, for example `python scripts/validate.py -k validation`. Test discovery excludes generated workspaces. The suite uses Pydantic AI `TestModel` for structured outputs and `FunctionModel` for scripted tool calls, blocks real model requests, replaces Docker and graph extraction, and writes artifacts in temporary directories. It covers routing contracts, project links, graph retrieval, source resolution and report references, and phase validation; it does not assess live model routing quality.
+The script runs the platform tests in `tests/`; extra pytest arguments can be appended, for example `python scripts/validate.py -k validation`. Test discovery excludes generated workspaces. The suite uses Pydantic AI `TestModel` for structured outputs and `FunctionModel` for scripted tool calls, blocks real model requests, replaces Docker and graph extraction, and writes artifacts in temporary directories. It covers routing contracts, project links, graph retrieval, source resolution and report references, phase validation, bounded recovery, and Docker failure feedback; it does not assess live model routing quality.
 
 The [Platform tests workflow](.github/workflows/tests.yml) runs the same validation command on pushes and pull requests using Ubuntu with Python 3.11 and 3.14. Open [CI results](https://github.com/Dutch-panda/AgentPlatform/actions/workflows/tests.yml) to inspect runs. To start a manual run, select **Run workflow**, choose a branch, and confirm. Results and failure logs appear on the commit or pull request; no model credentials or Docker service are needed. Requiring passing checks before merging is a separate repository setting.
 

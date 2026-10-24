@@ -7,7 +7,7 @@
 Turn engineering requests into structured briefs, research, phased specifications, and validated implementations.
 
 ![Version](https://img.shields.io/badge/version-0.1.0-6366f1?style=flat-square)
-![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?style=flat-square&logo=python&logoColor=white)
 ![Pydantic AI](https://img.shields.io/badge/agents-Pydantic_AI-e92063?style=flat-square)
 ![Docker](https://img.shields.io/badge/execution-Docker-2496ED?style=flat-square&logo=docker&logoColor=white)
 ![Obsidian](https://img.shields.io/badge/notes-Obsidian-7C3AED?style=flat-square&logo=obsidian&logoColor=white)
@@ -43,7 +43,7 @@ Agents run sequentially along the selected route. Research requests continue thr
 
 ### 1. Prepare the environment
 
-You need **Python 3.10+**, **Docker installed and running**, and a ChatGPT account with access to the configured model through the provider's sign-in flow. Network access is needed for authentication, model calls, and image or dependency downloads. Obsidian is optional for viewing notes.
+You need **Python 3.11+**, **Docker installed and running**, and a ChatGPT account with access to the configured model through the provider's sign-in flow. Network access is needed for authentication, model calls, and image or dependency downloads. Obsidian is optional for viewing notes.
 
 From the repository root:
 
@@ -186,7 +186,7 @@ python scripts/validate.py
 
 The script runs the platform tests in `tests/`; extra pytest arguments can be appended, for example `python scripts/validate.py -k validation`. Test discovery excludes generated workspaces. The suite uses Pydantic AI `TestModel` for structured outputs and `FunctionModel` for scripted tool calls, blocks real model requests, replaces Docker and graph extraction, and writes artifacts in temporary directories. It covers routing contracts, project links, graph retrieval, and phase validation; it does not assess live model routing quality.
 
-The [Platform tests workflow](.github/workflows/tests.yml) runs the same validation command on pushes and pull requests using Ubuntu with Python 3.10 and 3.14. It can also be started manually from GitHub's Actions tab. Results and failure logs appear on the commit or pull request; no model credentials or Docker service are needed. Requiring passing checks before merging is a separate repository setting.
+The [Platform tests workflow](.github/workflows/tests.yml) runs the same validation command on pushes and pull requests using Ubuntu with Python 3.11 and 3.14. It can also be started manually from GitHub's Actions tab. Results and failure logs appear on the commit or pull request; no model credentials or Docker service are needed. Requiring passing checks before merging is a separate repository setting.
 
 An end-to-end run still requires model access and Docker and writes local artifacts; review generated output before using it.
 

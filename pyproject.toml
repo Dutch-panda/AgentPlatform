@@ -7,7 +7,7 @@ name = "v2-agent-system"
 version = "0.1.0"
 description = "Modular multi-agent architecture using Pydantic AI, Obsidian, and Graphify"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     "pydantic>=2.0",
     "pydantic-ai>=2.57.0",

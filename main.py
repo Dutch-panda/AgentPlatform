@@ -2,109 +2,161 @@ import sys
 import argparse
 import uuid
 import asyncio
+import re
 from datetime import datetime
+from pathlib import Path
 from dotenv import load_dotenv
 from tools.chatgpt_auth import get_chatgpt_model
 from tools.project_notes import validate_project_id
+from tools.task_ledger import TaskLedger, TaskRecord, validate_task_id
+from agents.natasha import NatashaRouter, TaskBrief
+from agents.odin import OdinResearcher, ResearchReport
+from agents.taghi import ExecutionPhase, TaghiArchitect, TechnicalSpec
+from agents.meti import MetiImplementer, ImplementationResult
 
-# Load environment variables (API keys, etc.) from .env
 load_dotenv()
 
-from agents.natasha import NatashaRouter
-from agents.odin import OdinResearcher
-from agents.taghi import ExecutionPhase, TaghiArchitect
-from agents.meti import MetiImplementer
+
+def task_id_for(prompt: str) -> str:
+    slug = re.sub(r'[^a-z0-9]+', '-', prompt.lower()).strip('-')[:48].rstrip('-') or 'task'
+    return f'task-{datetime.now():%Y%m%d}-{slug}-{uuid.uuid4().hex[:12]}'
+
+
+def fast_track_spec(task_id: str, objective: str) -> TechnicalSpec:
+    command = f'sh /app/workspace/{task_id}/validate-{task_id}.sh'
+    return TechnicalSpec(
+        task_id=task_id, architecture_overview=objective, required_dependencies=[],
+        phases=[ExecutionPhase(
+            phase_name='1-fast-track',
+            instructions=(f'{objective}\n\nCreate your project directory at workspace/{task_id}/ and place all modules there. '
+                          f'Create validate-{task_id}.sh in /app/workspace/{task_id}/ with task-specific tests or checks. '
+                          'The script must exercise the implemented behavior and exit nonzero on failure. '
+                          'A completion message alone is not validation.'),
+            validation_command=command,
+        )],
+    )
+
+
+async def run_task(record: TaskRecord, ledger: TaskLedger) -> ImplementationResult:
+    # Reject unreadable stage checkpoints before authentication or external work.
+    if record.brief is not None:
+        TaskBrief.model_validate(record.brief)
+    if record.research is not None:
+        ResearchReport.model_validate(record.research)
+    if record.specification is not None:
+        TechnicalSpec.model_validate(record.specification)
+    checkpoint = record.implementation
+    implementation_started = any(checkpoint.get(key) for key in (
+        'workspace_used', 'validated_phases', 'validation_attempts', 'in_flight_command',
+    ))
+    if implementation_started and not (Path('workspace') / record.task_id).is_dir():
+        raise ValueError('The saved task workspace is missing; restore it before resuming implementation')
+    if checkpoint.get('in_flight_command'):
+        print('[Resume] Interrupted command outcome is unknown: ' + checkpoint['in_flight_command'])
+        print('[Resume] Inspect its side effects; the unfinished phase may execute again.')
+    model = await get_chatgpt_model()
+    project = record.project_id
+    task_id = record.task_id
+    record.run_number += 1
+    record.error = None
+    ledger.save(record)
+
+    if record.brief is None:
+        record.status = 'PENDING'
+        ledger.save(record)
+        brief = await NatashaRouter(model_name=model).coordinate_request(record.prompt, task_id, project_id=project)
+        record.brief = brief.model_dump(mode='json')
+        ledger.save(record)
+    brief = TaskBrief.model_validate(record.brief)
+    objective = brief.objective
+    if brief.research_questions:
+        objective += '\n\nScope and questions:\n' + '\n'.join(f'- {item}' for item in brief.research_questions)
+
+    if record.specification is None:
+        if brief.target_lead == 'odin':
+            if record.research is None:
+                record.status = 'RESEARCHING'
+                ledger.save(record)
+                research = await OdinResearcher(model_name=model).conduct_research(task_id, objective, project_id=project)
+                record.research = research.model_dump(mode='json')
+                ledger.save(record)
+            research = ResearchReport.model_validate(record.research)
+            design_context = (
+                f'Objective: {objective}\n\nSummary: {research.summary}\n\nKey findings:\n'
+                + '\n'.join(f'- {item}' for item in research.key_findings)
+                + '\n\nRecommended stack:\n' + '\n'.join(f'- {item}' for item in research.recommended_stack)
+            )
+        else:
+            design_context = objective
+        if brief.target_lead in ('odin', 'taghi'):
+            record.status = 'ARCHITECTING'
+            ledger.save(record)
+            spec = await TaghiArchitect(model_name=model).create_specification(task_id, design_context, project_id=project)
+        else:
+            spec = fast_track_spec(task_id, objective)
+        spec.project_id = project
+        record.specification = spec.model_dump(mode='json')
+        ledger.save(record)
+
+    spec = TechnicalSpec.model_validate(record.specification)
+    record.status = 'IMPLEMENTING'
+    ledger.save(record)
+
+    def save_implementation(state: dict) -> None:
+        record.implementation = state
+        ledger.save(record)
+
+    return await MetiImplementer(model_name=model).execute_specification(
+        task_id, spec.architecture_overview, spec.phases,
+        required_dependencies=spec.required_dependencies, project_id=project,
+        checkpoint=checkpoint, checkpoint_callback=save_implementation, run_number=record.run_number,
+    )
+
 
 async def main() -> None:
-   
-    parser = argparse.ArgumentParser(description="Run the multi-agent engineering workflow")
-    parser.add_argument("prompt", help="Task description or prompt")
-    parser.add_argument("--project", type=validate_project_id, help="Parent project ID, for example my-awesome-app")
+    parser = argparse.ArgumentParser(description='Run or resume the multi-agent engineering workflow')
+    parser.add_argument('prompt', nargs='?', help='Task description or prompt')
+    parser.add_argument('--project', type=validate_project_id, help='Parent project ID')
+    parser.add_argument('--resume', type=validate_task_id, metavar='TASK_ID', help='Resume a saved local task')
     args = parser.parse_args()
-    user_prompt = args.prompt.strip()
-    project_id = args.project
-    if not user_prompt:
-        print("Task description cannot be empty.")
+    if args.resume and (args.prompt is not None or args.project is not None):
+        parser.error('--resume cannot be combined with a prompt or --project; saved values are reused')
+    if not args.resume and (args.prompt is None or not args.prompt.strip()):
+        parser.error('Provide a non-empty prompt or --resume TASK_ID')
+    task_id = args.resume or task_id_for(args.prompt.strip())
+    try:
+        ledger = TaskLedger()
+        with ledger.claim(task_id):
+            if args.resume:
+                record = ledger.load(task_id)
+            else:
+                record = TaskRecord(task_id=task_id, prompt=args.prompt.strip(), project_id=args.project)
+                ledger.create(record)
+            print(f'[Orchestrator] Task ID: {task_id}')
+            if record.status == 'COMPLETED':
+                print('[Orchestrator] Task is already completed; no stages were run.')
+                return
+            try:
+                result = await run_task(record, ledger)
+            except (Exception, KeyboardInterrupt, asyncio.CancelledError) as error:
+                record.status = 'FAILED'
+                record.error = f'{type(error).__name__}: {error}'
+                ledger.save(record)
+                raise
+            record.result = result.model_dump(mode='json')
+            record.status = 'COMPLETED' if result.status == 'success' else 'FAILED'
+            record.error = None if result.status == 'success' else result.summary
+            ledger.save(record)
+            print(f'[Orchestrator] {result.summary}')
+            if result.status != 'success':
+                print(f'[Orchestrator] Resume with: python main.py --resume {task_id}')
+                sys.exit(1)
+            print(f'[Orchestrator] Workflow {task_id} Completed Successfully!')
+    except Exception as error:
+        print(f'[Orchestrator] {error}', file=sys.stderr)
+        print(f'[Orchestrator] To retry a saved task: python main.py --resume {task_id}', file=sys.stderr)
         sys.exit(1)
 
-    model_name = await get_chatgpt_model()
 
-    natasha = NatashaRouter(model_name=model_name)
-
-    #temp placeholder for task ID
-    temp_id = "task-temp"
-    
-    # Natasha Coordinator & Dynamic Router
-    task_brief = await natasha.coordinate_request(user_prompt, temp_id, project_id=project_id)
-    
-    #Generate a unique, immutable task ID based on task brief 
-    timestamp = datetime.now().strftime("%Y%m%d")
-    sanitized_slug = task_brief.slug.lower().replace(" ", "-")
-    short_hash = uuid.uuid4().hex[:6]
-    task_id = f"task-{timestamp}-{sanitized_slug}-{short_hash}"
-
-    target = task_brief.target_lead.lower()
-
-    task_brief.task_id = task_id
-
-    print(f"\n[Orchestrator] Generated Structured Task ID: {task_id}")
-    print(f"\n[Orchestrator] Natasha routed task to: {target.upper()}\n")
-
-    objective = task_brief.objective
-    if task_brief.research_questions:
-        objective += "\n\nScope and questions:\n" + "\n".join(
-            f"- {question}" for question in task_brief.research_questions
-        )
-
-    if target == "odin":
-        # Full Research -> Architecture -> Implementation Pipeline
-        research = await OdinResearcher(model_name=model_name).conduct_research(task_id, objective, project_id=project_id)
-        research_context = (
-            f"Objective: {objective}\n\nSummary: {research.summary}\n\n"
-            "Key findings:\n" + "\n".join(f"- {item}" for item in research.key_findings)
-            + "\n\nRecommended stack:\n"
-            + "\n".join(f"- {item}" for item in research.recommended_stack)
-        )
-        spec = await TaghiArchitect(model_name=model_name).create_specification(task_id, research_context, project_id=project_id)
-
-    elif target == "taghi":
-        # Skip research, go straight to Architecture Design -> Implementation
-        spec = await TaghiArchitect(model_name=model_name).create_specification(task_id, objective, project_id=project_id)
-
-    elif target == "meti":
-        validation_script = f"validate-{task_id}.sh"
-        default_phases = [
-            ExecutionPhase(
-                phase_name="1-fast-track",
-                instructions=(
-                    f"{objective}\n\n"
-                    f"Create your project directory at workspace/{task_id}/ and place all modules there. "
-                    f"Create {validation_script} in /app/workspace/{task_id}/ with task-specific tests or checks. "
-                    "The script must exercise the implemented behavior and exit nonzero on failure. "
-                    "A completion message alone is not validation."
-                ),
-                validation_command=f"sh /app/workspace/{task_id}/{validation_script}",
-            )
-        ]
-        result = await MetiImplementer(model_name=model_name).execute_specification(task_id, objective, default_phases, project_id=project_id)
-
-    else:
-        raise ValueError(f"Unknown target lead: {target}")
-
-    if target in ("odin", "taghi"):
-        result = await MetiImplementer(model_name=model_name).execute_specification(
-            task_id, spec.architecture_overview, spec.phases,
-            required_dependencies=spec.required_dependencies,
-            project_id=project_id,
-        )
-
-    print(f"[Orchestrator] {result.summary}")
-    if result.status != "success":
-        print(f"[Orchestrator] Workflow {task_id} failed. Check ./vault/code-reviews.")
-        sys.exit(1)
-
-    print(f"[Orchestrator] Workflow {task_id} Completed Successfully!")
-    print("[Orchestrator] Check your ./vault folder and Obsidian app.")
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     asyncio.run(main())

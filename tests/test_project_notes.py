@@ -86,10 +86,10 @@ class ProjectNotesTests(unittest.IsolatedAsyncioTestCase):
                  patch.object(main, "NatashaRouter") as natasha, patch.object(main, "OdinResearcher") as odin, \
                  patch.object(main, "TaghiArchitect") as taghi, patch.object(main, "MetiImplementer") as meti, \
                  patch.object(main.sys, "argv", ["main.py", "Build", "--project", "my-app"]):
-                natasha.return_value.coordinate_request = AsyncMock(return_value=SimpleNamespace(target_lead=route, objective="Build", slug="task", research_questions=[]))
-                odin.return_value.conduct_research = AsyncMock(return_value=SimpleNamespace(summary="Research", key_findings=[], recommended_stack=[]))
-                taghi.return_value.create_specification = AsyncMock(return_value=SimpleNamespace(architecture_overview="Design", phases=[phase], required_dependencies=[]))
-                meti.return_value.execute_specification = AsyncMock(return_value=SimpleNamespace(status="success", summary="Done"))
+                natasha.return_value.coordinate_request = AsyncMock(return_value=TaskBrief(task_id="task", title="Task", target_lead=route, objective="Build", slug="task", research_questions=[]))
+                odin.return_value.conduct_research = AsyncMock(return_value=ResearchReport(task_id="task", summary="Research", key_findings=[], recommended_stack=[]))
+                taghi.return_value.create_specification = AsyncMock(return_value=TechnicalSpec(task_id="task", architecture_overview="Design", phases=[phase], required_dependencies=[]))
+                meti.return_value.execute_specification = AsyncMock(return_value=ImplementationResult(task_id="task", status="success", summary="Done", executed_phases=[]))
                 await main.main()
                 self.assertEqual(natasha.return_value.coordinate_request.call_args.kwargs["project_id"], "my-app")
                 self.assertEqual(meti.return_value.execute_specification.call_args.kwargs["project_id"], "my-app")

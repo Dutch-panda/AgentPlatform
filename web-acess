@@ -1,9 +1,0 @@
-# Proposal: web access for research
-
-Status: proposed; not implemented.
-
-Natasha and Odin currently have vault graph lookup tools, but no dedicated URL-fetching or web-search tools. Odin's reports should not be interpreted as verified live web research.
-
-A future capability could retrieve user-provided URLs and search external sources when a task needs current information. Specify source attribution, retrieval failures, and how retrieved content is handled before adding tools.
-
-Automatic skill or plugin installation is an idea for future evaluation; the platform currently does not install missing capabilities dynamically.

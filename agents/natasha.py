@@ -66,14 +66,14 @@ class NatashaRouter:
             return self.graph_manager.get_neighbors(node_id)
         
         @self.agent.tool_plain
-        def write_research_note(filename: str, content: str) -> str:
+        def write_task_note(filename: str, content: str) -> str:
             """
-            Safely write a markdown research report into the vault/research directory.
+            Safely write a markdown task report into the vault/task directory.
             """
-            root = self.research_dir.resolve()
+            root = self.tasks_dir.resolve()
             file_path = (root / filename).resolve()
             if not file_path.is_relative_to(root) or file_path == root or file_path.suffix.lower() != ".md":
-                raise ValueError("Research notes must be Markdown files within the research directory")
+                raise ValueError("Task notes must be Markdown files within the Task directory")
             file_path.parent.mkdir(parents=True, exist_ok=True)
             file_path.write_text(content, encoding="utf-8")
             print(f"[Natasha Tool] Wrote note directly to vault: {file_path}")

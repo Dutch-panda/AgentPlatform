@@ -1,6 +1,5 @@
 import sys
 import argparse
-import uuid
 import asyncio
 import re
 from datetime import datetime
@@ -17,19 +16,40 @@ from agents.meti import MetiImplementer, ImplementationResult
 load_dotenv()
 
 
-def task_id_for(prompt: str) -> str:
+def task_id_for(prompt: str, ledger: TaskLedger | None = None) -> str:
     slug = re.sub(r'[^a-z0-9]+', '-', prompt.lower()).strip('-')[:48].rstrip('-') or 'task'
-    return f'task-{datetime.now():%Y%m%d}-{slug}-{uuid.uuid4().hex[:12]}'
+    base_id = f'task-{slug}-{datetime.now():%Y%m%d}'
+    if ledger is None:
+        return base_id
+    task_id = base_id
+    counter = 1
+    while True:
+        try:
+            ledger.load(task_id)
+            counter += 1
+            task_id = f'{base_id}-{counter}'
+        except ValueError:
+            return task_id
 
 
-def fast_track_spec(task_id: str, objective: str) -> TechnicalSpec:
-    command = f'sh /app/workspace/{task_id}/validate-{task_id}.sh'
+def fast_track_spec(
+    task_id: str,
+    objective: str,
+    base_image: str | None = None,
+    project_id: str | None = None,
+) -> TechnicalSpec:
+    workspace_dir = project_id or task_id
+    command = f'sh /app/workspace/{workspace_dir}/validate-{task_id}.sh'
+    image = base_image
+    if image is None and any(kw in objective.lower() for kw in ('python', 'pytest', 'pip', 'fastapi', 'flask', 'django', 'pandas', 'numpy')):
+        image = 'python:3.11-slim'
     return TechnicalSpec(
         task_id=task_id, architecture_overview=objective, required_dependencies=[],
+        base_image=image,
         phases=[ExecutionPhase(
             phase_name='1-fast-track',
-            instructions=(f'{objective}\n\nCreate your project directory at workspace/{task_id}/ and place all modules there. '
-                          f'Create validate-{task_id}.sh in /app/workspace/{task_id}/ with task-specific tests or checks. '
+            instructions=(f'{objective}\n\nCreate your project directory at workspace/{workspace_dir}/ and place all modules there. '
+                          f'Create validate-{task_id}.sh in /app/workspace/{workspace_dir}/ with task-specific tests or checks. '
                           'The script must exercise the implemented behavior and exit nonzero on failure. '
                           'A completion message alone is not validation.'),
             validation_command=command,
@@ -37,7 +57,12 @@ def fast_track_spec(task_id: str, objective: str) -> TechnicalSpec:
     )
 
 
-async def run_task(record: TaskRecord, ledger: TaskLedger) -> ImplementationResult:
+async def run_task(
+    record: TaskRecord,
+    ledger: TaskLedger,
+    model_override: str | None = None,
+    image_override: str | None = None,
+) -> ImplementationResult:
     # Reject unreadable stage checkpoints before authentication or external work.
     if record.brief is not None:
         TaskBrief.model_validate(record.brief)
@@ -49,12 +74,13 @@ async def run_task(record: TaskRecord, ledger: TaskLedger) -> ImplementationResu
     implementation_started = any(checkpoint.get(key) for key in (
         'workspace_used', 'validated_phases', 'validation_attempts', 'in_flight_command',
     ))
-    if implementation_started and not (Path('workspace') / record.task_id).is_dir():
-        raise ValueError('The saved task workspace is missing; restore it before resuming implementation')
+    workspace_dir = record.project_id or record.task_id
+    if implementation_started and not (Path('workspace') / workspace_dir).is_dir():
+        raise ValueError('The saved project workspace is missing; restore it before resuming implementation')
     if checkpoint.get('in_flight_command'):
         print('[Resume] Interrupted command outcome is unknown: ' + checkpoint['in_flight_command'])
         print('[Resume] Inspect its side effects; the unfinished phase may execute again.')
-    model = await get_chatgpt_model()
+    model = await get_chatgpt_model(model_name=model_override)
     project = record.project_id
     task_id = record.task_id
     record.run_number += 1
@@ -93,7 +119,9 @@ async def run_task(record: TaskRecord, ledger: TaskLedger) -> ImplementationResu
             ledger.save(record)
             spec = await TaghiArchitect(model_name=model).create_specification(task_id, design_context, project_id=project)
         else:
-            spec = fast_track_spec(task_id, objective)
+            spec = fast_track_spec(task_id, objective, base_image=image_override, project_id=project)
+        if image_override:
+            spec.base_image = image_override
         spec.project_id = project
         record.specification = spec.model_dump(mode='json')
         ledger.save(record)
@@ -106,10 +134,12 @@ async def run_task(record: TaskRecord, ledger: TaskLedger) -> ImplementationResu
         record.implementation = state
         ledger.save(record)
 
+    effective_image = image_override or spec.base_image
     return await MetiImplementer(model_name=model).execute_specification(
         task_id, spec.architecture_overview, spec.phases,
         required_dependencies=spec.required_dependencies, project_id=project,
         checkpoint=checkpoint, checkpoint_callback=save_implementation, run_number=record.run_number,
+        base_image=effective_image,
     )
 
 
@@ -118,14 +148,16 @@ async def main() -> None:
     parser.add_argument('prompt', nargs='?', help='Task description or prompt')
     parser.add_argument('--project', type=validate_project_id, help='Parent project ID')
     parser.add_argument('--resume', type=validate_task_id, metavar='TASK_ID', help='Resume a saved local task')
+    parser.add_argument('--model', help='Model identifier (e.g. openai:gpt-4o, anthropic:claude-3-5-sonnet-latest)')
+    parser.add_argument('--image', help='Docker base image override (e.g. python:3.11-slim)')
     args = parser.parse_args()
     if args.resume and (args.prompt is not None or args.project is not None):
         parser.error('--resume cannot be combined with a prompt or --project; saved values are reused')
     if not args.resume and (args.prompt is None or not args.prompt.strip()):
         parser.error('Provide a non-empty prompt or --resume TASK_ID')
-    task_id = args.resume or task_id_for(args.prompt.strip())
     try:
         ledger = TaskLedger()
+        task_id = args.resume or task_id_for(args.prompt.strip(), ledger=ledger)
         with ledger.claim(task_id):
             if args.resume:
                 record = ledger.load(task_id)
@@ -137,7 +169,7 @@ async def main() -> None:
                 print('[Orchestrator] Task is already completed; no stages were run.')
                 return
             try:
-                result = await run_task(record, ledger)
+                result = await run_task(record, ledger, model_override=args.model, image_override=args.image)
             except (Exception, KeyboardInterrupt, asyncio.CancelledError) as error:
                 record.status = 'FAILED'
                 record.error = f'{type(error).__name__}: {error}'

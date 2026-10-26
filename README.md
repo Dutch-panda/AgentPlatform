@@ -65,14 +65,32 @@ On Windows, activate the environment with `.venv\Scripts\Activate.ps1` in PowerS
 
 ### 2. Configure the model (optional)
 
-The CLI loads `.env` automatically. These are the settings read by the authentication helper, shown with their current code defaults:
+The CLI loads `.env` automatically. You can authenticate either via direct provider API keys or through ChatGPT OAuth:
 
+**Option A: Standard API Keys**
+Set one of the standard provider keys in `.env` or your environment:
+```dotenv
+OPENAI_API_KEY=sk-...
+# Optional: OPENAI_MODEL=gpt-4o
+
+# Or Anthropic:
+# ANTHROPIC_API_KEY=sk-ant-...
+# ANTHROPIC_MODEL=claude-3-5-sonnet-latest
+
+# Or Gemini:
+# GEMINI_API_KEY=AIza...
+# GEMINI_MODEL=gemini-2.0-flash
+```
+You can also override the model at runtime using the `--model` CLI flag (e.g., `--model anthropic:claude-3-5-sonnet-latest`).
+
+**Option B: ChatGPT OAuth**
+If no direct API key is set, the CLI uses ChatGPT OAuth through Pydantic AI:
 ```dotenv
 OPENAI_MODEL=gpt-6.1-sol
 CHATGPT_AUTH_FILE=.env.chatgpt-auth.json
 ```
 
-Relative credential paths resolve from the repository root; `~` is expanded. The CLI uses ChatGPT OAuth through Pydantic AI. On the first run, open the printed authorization URL and complete sign-in. Credentials are saved locally for reuse. The default credential filename is covered by `.gitignore`; keep any custom credential file out of version control too.
+Relative credential paths resolve from the repository root; `~` is expanded. On the first run, open the printed authorization URL and complete sign-in. Credentials are saved locally for reuse.
 
 ### 3. Give the team a task
 
@@ -86,23 +104,29 @@ For a standalone task, omit the project:
 python main.py "Create a small CSV validation utility with tests"
 ```
 
+To specify or override the Docker sandbox image:
+
+```bash
+python main.py "Build a Python utility" --image python:3.11-slim
+```
+
 Run commands from the repository root so `./vault` and `./workspace` resolve correctly. Inspect the CLI without starting a workflow:
 
 ```bash
 python main.py --help
 ```
 
-The first sandbox command pulls `node:18-bullseye-slim` if it is missing locally. Generated files live in `workspace/<task_id>/`; implementation summaries and phase results are saved under `vault/code-reviews/`. A returned failed implementation makes the CLI exit with status `1`.
+The first sandbox command pulls the selected container image (defaulting to `node:18-bullseye-slim` or the configured `DEFAULT_SANDBOX_IMAGE` / `--image`) if it is missing locally. Generated files live in `workspace/<project_id>/` (or `workspace/<task_id>/` for standalone tasks); implementation summaries and phase results are saved under `vault/code-reviews/`. A returned failed implementation makes the CLI exit with status `1`.
 
 ## Resume a task
 
 The CLI creates a permanent task ID before routing and prints it for later use. Each run is saved in a local SQLite ledger at `.state/tasks.db`. If a workflow fails or is interrupted, resume it from the same repository root:
 
 ```bash
-python main.py --resume task-20261024-build-csv-validator-012345abcdef
+python main.py --resume task-build-csv-validator-20261024
 ```
 
-Replace the example ID with the one printed by your run. Resume reuses the saved prompt, project ID, stage outputs, and `workspace/<task_id>/`. Do not supply a new prompt or `--project` together with `--resume`.
+Replace the example ID with the one printed by your run. Resume reuses the saved prompt, project ID, stage outputs, and workspace. Do not supply a new prompt or `--project` together with `--resume`.
 
 The ledger tracks `PENDING`, `RESEARCHING`, `ARCHITECTING`, `IMPLEMENTING`, `COMPLETED`, and `FAILED`. Completed routing, research, and specification outputs are reused. During implementation, validated phases are skipped and prior validation history is retained. A resumed task that proceeds to execution starts a new numbered run with a fresh three-attempt budget for unfinished phases. A completed task returns without calling a model or rerunning agents.
 
@@ -125,7 +149,7 @@ Agent Platform creates `vault/projects/task-tracker.md` if needed and preserves 
 project: "[[projects/task-tracker]]"
 ```
 
-Project IDs accept letters, digits, underscores, and hyphens, and must start with a letter or digit. Project grouping links the notes. Each new task receives a separate workspace; resumed runs reuse that task’s existing workspace.
+Project IDs accept letters, digits, underscores, and hyphens, and must start with a letter or digit. Project grouping links the notes and codebases: tasks sharing a project ID share the same workspace (`workspace/<project_id>/`), allowing successive tasks to build upon existing project modules and tests. Resumed runs reuse that task's workspace. Standalone tasks without a project ID use `workspace/<task_id>/`.
 
 ```text
 Briefs ──────────┐
@@ -150,12 +174,12 @@ These references identify retrieved graph context. They do not establish that th
 
 ## What stays on disk
 
-Each new task gets a permanent ID shaped like `task-YYYYMMDD-<prompt-slug>-<twelve-character-id>`. The slug is derived from the prompt before any model call; resume keeps the same ID.
+Each new task gets a permanent ID shaped like `task-<prompt-slug>-YYYYMMDD` (e.g. `task-build-csv-validator-20261026`). The slug is derived from the prompt before any model call; resume keeps the same ID.
 
 ```text
 .state/tasks.db                      Local workflow ledger and checkpoints
 .state/<task_id>.lock                Local process lock file (may remain after exit)
-workspace/<task_id>/                  Generated source, tests, docs, dependencies
+workspace/<project_or_task_id>/       Generated source, tests, docs, dependencies
 vault/
 ├── tasks/<task_id>-brief.md          Routing brief with the permanent task ID
 ├── research/research-<task_id>.md     Research report, when Odin runs
@@ -169,7 +193,7 @@ The local `.state/` directory, generated workspace files, stage notes, and graph
 
 ## Execution and validation
 
-- Each command runs in a **fresh Docker container**, with only the task directory mounted at `/app/workspace/<task_id>/`.
+- Each command runs in a **fresh Docker container**, with the project or task workspace mounted at `/app/workspace/<project_or_task_id>/`.
 - Files in that mount persist across commands. Container-local installs and changes outside it do not; keep durable dependencies in the mounted directory.
 - Each phase must pass its **exact validation command**, submitted separately with its phase name, in the declared order. Successful command exit codes are recorded as validation results.
 - Failed phase validation returns combined stdout/stderr to Meti with the remaining attempt count. Meti can repair and rerun the same check, up to **three validation attempts per phase per run** (one initial attempt and two retries). The third failure stops execution before more sandbox commands or later phases.
@@ -217,7 +241,7 @@ The review note records each phase's attempt number, command, exit code, capture
 - **Dependencies disappear between commands:** install them inside the mounted task directory. Each command starts a new container.
 - **Implementation reports failure:** inspect `vault/code-reviews/review-<task_id>.md` and terminal output. A phase is recorded only when its exact validation command exits successfully with the expected phase name.
 - **Unknown task ID on resume:** run from the same repository root and use the permanent ID printed by the CLI. Confirm the original `.state/tasks.db` is present; older tasks created before the ledger cannot be resumed automatically.
-- **Saved workspace is missing:** restore `workspace/<task_id>/` from the same backup as the ledger. A checkpoint records progress, not a copy of generated source files.
+- **Saved workspace is missing:** restore `workspace/<project_id>/` (or `workspace/<task_id>/`) from the same backup as the ledger. A checkpoint records progress, not a copy of generated source files.
 - **Task is already running:** another CLI process holds the task lock. Let it finish or stop that process; a leftover `.lock` file alone does not mean the lock is held. Do not delete lock files to bypass a running task.
 - **Interrupted command outcome is unknown:** inspect the existing files, running containers, and external side effects before resuming. Commands may have partially completed and can run again.
 - **Invalid checkpoint:** preserve the original ledger and restore a consistent backup if available. Do not edit phase completion flags to force a resume; start a new task if the checkpoint cannot be recovered.
@@ -244,20 +268,17 @@ The [Platform tests workflow](.github/workflows/tests.yml) runs the same validat
 
 An end-to-end run still requires model access and Docker and writes local artifacts; review generated output before using it.
 
-Documentation has three roles:
+Documentation has two roles:
 
 - This README describes the implemented platform and its operational limits.
-- [Implementation delegation proposal](1746900806.md) and [web access proposal](web-acess) describe future work.
 - `vault/` and `workspace/` contain local run artifacts and examples. Historical reports describe individual runs, not guaranteed platform capabilities. They are not the public platform manual.
 
 ## Current limitations
 
 Agent Platform is version **0.1.0**. These details matter when interpreting its output:
 
-- **Natasha note-writing tool:** the registered `write_research_note` tool references a `research_dir` attribute that its constructor does not initialize. Calling this optional tool fails; the normal routing-brief writer uses `tasks_dir` separately.
 - **Optional stage links:** specification and review frontmatter can link to skipped stages; a wikilink does not guarantee its target exists.
 - **Container isolation:** network access is enabled, the task directory is writable, and the runner does not configure CPU or memory limits.
-- **Runtime availability:** the default container is a Node image. Python and other runtimes are not provisioned by the runner; tasks that need them must arrange installation or use an adapted image.
 - **Validation scope:** phase completion reflects command exit codes. It does not independently establish test quality or provide a separate human code review.
 
 <div align="center">

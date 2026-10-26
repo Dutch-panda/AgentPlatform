@@ -80,8 +80,11 @@ def test_taghi_saves_dependencies_and_exact_validation(tmp_path):
     taghi = TaghiArchitect(vault_path=str(tmp_path / "vault"), model_name=model)
     spec = asyncio.run(taghi.create_specification("task-csv", "Use Python", project_id="csv"))
     assert spec.task_id == "task-csv" and spec.project_id == "csv"
-    assert "workspace/task-csv/" in spec.architecture_overview
+    assert "workspace/csv/" in spec.architecture_overview
     assert spec.phases == [phase]
     note = (tmp_path / "vault/specs/spec-task-csv.md").read_text()
     assert "- pytest" in note and "`python -m pytest`" in note
     assert "[[projects/csv]]" in note
+
+    standalone = asyncio.run(taghi.create_specification("task-standalone", "Use Python", project_id=None))
+    assert "workspace/task-standalone/" in standalone.architecture_overview

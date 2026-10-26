@@ -18,6 +18,10 @@ class TechnicalSpec(BaseModel):
     project_id: str | None = Field(default=None, description="Parent project ID supplied by the caller; null for standalone tasks")
     architecture_overview: str
     required_dependencies: list[str]
+    base_image: str | None = Field(
+        default=None,
+        description="Docker base image matching the stack (e.g. 'python:3.11-slim' or 'node:18-bullseye-slim')"
+    )
     phases: list[ExecutionPhase] = Field(description="Ordered sequential phases for Meti to execute")
 
 class TaghiArchitect:
@@ -34,7 +38,9 @@ class TaghiArchitect:
             output_type=TechnicalSpec,
             system_prompt=(
                 "You are Taghi, Technical Design Lead. Verify that the task is designated for design/architecture. "
-                "Translate research reports into precise technical specifications and sequential execution phases for Meti."
+                "Translate research reports into precise technical specifications and sequential execution phases for Meti. "
+                "Select a suitable Docker base_image for the required runtime (e.g. 'python:3.11-slim' for Python tasks, "
+                "'node:18-bullseye-slim' for Node/JS/TS, or an appropriate slim image)."
             )
         )
         # --- BINDING TOOLS TO Taghi ---
@@ -74,12 +80,13 @@ class TaghiArchitect:
         if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", task_id):
             raise ValueError("Task ID must contain only letters, digits, underscores, or hyphens")
         project = prepare_project(self.vault_path, project_id)
-        directory_instruction = f"Create your project directory at workspace/{task_id}/ and place all modules there."
+        workspace_dir = project_id or task_id
+        directory_instruction = f"Create your project directory at workspace/{workspace_dir}/ and place all modules there."
         prompt = (
             f"Task ID: {task_id}\n{project.prompt}Research Summary/Findings: {research_summary}\n\n"
             f"Include this instruction in the specification: {directory_instruction}\n"
-            f"All sandbox commands start in /app/workspace/{task_id}/. "
-            "Keep source files, tests, documentation, validation scripts, and dependencies in this task directory. "
+            f"All sandbox commands start in /app/workspace/{workspace_dir}/. "
+            "Keep source files, tests, documentation, validation scripts, and dependencies in this project directory. "
             "Write validation commands relative to this directory or using its absolute container path."
         )
         result = await self.agent.run(prompt)

@@ -42,6 +42,8 @@ class ExecutionState:
     in_flight_command: str | None = None
     interrupted_commands: list[str] = field(default_factory=list)
     workspace_used: bool = False
+    base_image: str | None = None
+    project_id: str | None = None
     checkpoint_callback: Callable[[dict], None] | None = None
 
     def save(self) -> None:
@@ -53,6 +55,7 @@ class ExecutionState:
                 'in_flight_command': self.in_flight_command,
                 'interrupted_commands': list(self.interrupted_commands),
                 'workspace_used': self.workspace_used,
+                'base_image': self.base_image,
             })
 
 class ImplementationResult(BaseModel):
@@ -63,12 +66,18 @@ class ImplementationResult(BaseModel):
     executed_phases: list[str] = Field(description="List of phases that were executed and validated")
 
 class MetiImplementer:
-    def __init__(self, vault_path: str = "./vault", workspace_path: str = "./workspace", model_name: str | Model = "openai-chat:gpt-4o"):
+    def __init__(
+        self,
+        vault_path: str = "./vault",
+        workspace_path: str = "./workspace",
+        model_name: str | Model = "openai-chat:gpt-4o",
+        base_image: str | None = None,
+    ):
         self.vault_path = Path(vault_path)
         self.code_reviews_dir = self.vault_path / "code-reviews"
         self.code_reviews_dir.mkdir(parents=True, exist_ok=True)
         
-        self.sandbox = DockerSandboxRunner(workspace_path=workspace_path)
+        self.sandbox = DockerSandboxRunner(workspace_path=workspace_path, base_image=base_image)
         self.graph_manager = GraphifyVaultManager(vault_path=str(self.vault_path))
 
         self.agent = Agent(
@@ -116,7 +125,11 @@ class MetiImplementer:
             ctx.deps.in_flight_command = shell_command
             ctx.deps.workspace_used = True
             ctx.deps.save()
-            result = self.sandbox.execute_code(shell_command, task_id=ctx.deps.task_id)
+            workspace_dir = ctx.deps.project_id or ctx.deps.task_id
+            call_kwargs = {"task_id": workspace_dir}
+            if ctx.deps.base_image is not None:
+                call_kwargs["image"] = ctx.deps.base_image
+            result = self.sandbox.execute_code(shell_command, **call_kwargs)
             ctx.deps.in_flight_command = None
             if phase_name is not None:
                 attempt = 1 + sum(item.phase_name == phase_name and item.run_number == ctx.deps.run_number
@@ -148,6 +161,7 @@ class MetiImplementer:
         checkpoint: dict | None = None,
         checkpoint_callback: Callable[[dict], None] | None = None,
         run_number: int = 1,
+        base_image: str | None = None,
     ) -> ImplementationResult:
         if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", task_id):
             raise ValueError("Task ID must contain only letters, digits, underscores, or hyphens")
@@ -172,10 +186,14 @@ class MetiImplementer:
         interrupted = list(checkpoint.get('interrupted_commands', []))
         if checkpoint.get('in_flight_command'):
             interrupted.append(checkpoint['in_flight_command'])
+        effective_image = base_image or checkpoint.get('base_image')
+        workspace_dir = project_id or task_id
         state = ExecutionState(
             task_id=task_id, phases=phases, validated_phases=list(validated), validation_attempts=attempts,
             run_number=run_number, interrupted_commands=interrupted, checkpoint_callback=checkpoint_callback,
             workspace_used=checkpoint.get('workspace_used', False),
+            base_image=effective_image,
+            project_id=project_id,
         )
         state.save()
         print(f"[Meti] Beginning phased implementation for task: {task_id}")
@@ -185,8 +203,9 @@ class MetiImplementer:
         prompt = (
             f"Task ID: {task_id}\n"
             f"{project.prompt}"
-            f"Create your project directory at workspace/{task_id}/ and place all modules there.\n"
-            f"The sandbox starts in /app/workspace/{task_id}/, mounted from the task's host directory. "
+            f"Create your project directory at workspace/{workspace_dir}/ and place all modules there.\n"
+            f"The sandbox starts in /app/workspace/{workspace_dir}/, mounted from the host directory. "
+            f"The container uses base image: '{effective_image}'. "
             "Write project files, tests, documentation, validation scripts, and dependencies only there. "
             "Use relative paths from this directory or its absolute container path; do not create another workspace or task subdirectory inside it.\n"
             f"Architecture Overview: {spec_overview}\n\n"
@@ -262,7 +281,7 @@ links: ["[[spec-{task_id}]]", "[[{task_id}-brief]]"]
 # Implementation Code Review: {task_id}
 
 {project.body}## Status: `{implementation_result.status.upper()}`
-
+{f'## Base Image\n`{state.base_image}`\n' if isinstance(state.base_image, str) and state.base_image else ''}
 ## Summary
 {implementation_result.summary}
 

@@ -5,24 +5,41 @@ import re
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from contracts import (
+    ImplementationCheckpoint,
+    ImplementationResult,
+    ResearchReport,
+    TaskBrief,
+    TechnicalSpec,
+)
 
 
 class TaskRecord(BaseModel):
+    model_config = ConfigDict(validate_assignment=True, extra="allow")
+
     schema_version: Literal[1] = 1
     task_id: str
     prompt: str
     project_id: str | None = None
     status: Literal['PENDING', 'RESEARCHING', 'ARCHITECTING', 'IMPLEMENTING', 'COMPLETED', 'FAILED'] = 'PENDING'
-    brief: dict | None = None
-    research: dict | None = None
-    specification: dict | None = None
-    implementation: dict = Field(default_factory=dict)
-    result: dict | None = None
+    brief: TaskBrief | dict | None = None
+    research: ResearchReport | dict | None = None
+    specification: TechnicalSpec | dict | None = None
+    implementation: ImplementationCheckpoint | dict = Field(default_factory=ImplementationCheckpoint)
+    result: ImplementationResult | dict | None = None
     error: str | None = None
     run_number: int = Field(default=0, ge=0)
+
+    @field_validator("implementation", mode="before")
+    @classmethod
+    def _validate_implementation(cls, value: Any) -> Any:
+        if isinstance(value, dict):
+            return ImplementationCheckpoint.model_validate(value)
+        return value
 
 
 def validate_task_id(task_id: str) -> str:

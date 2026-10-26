@@ -8,10 +8,19 @@ from dotenv import load_dotenv
 from tools.chatgpt_auth import get_chatgpt_model
 from tools.project_notes import validate_project_id
 from tools.task_ledger import TaskLedger, TaskRecord, validate_task_id
-from agents.natasha import NatashaRouter, TaskBrief
-from agents.odin import OdinResearcher, ResearchReport
-from agents.taghi import ExecutionPhase, TaghiArchitect, TechnicalSpec
-from agents.meti import MetiImplementer, ImplementationResult
+from contracts import (
+    ExecutionPhase,
+    ImplementationCheckpoint,
+    ImplementationResult,
+    ResearchReport,
+    TaskBrief,
+    TechnicalSpec,
+    format_design_context,
+)
+from agents.natasha import NatashaRouter
+from agents.odin import OdinResearcher
+from agents.taghi import TaghiArchitect
+from agents.meti import MetiImplementer
 
 load_dotenv()
 
@@ -71,14 +80,14 @@ async def run_task(
     if record.specification is not None:
         TechnicalSpec.model_validate(record.specification)
     checkpoint = record.implementation
-    implementation_started = any(checkpoint.get(key) for key in (
-        'workspace_used', 'validated_phases', 'validation_attempts', 'in_flight_command',
-    ))
+    if isinstance(checkpoint, dict):
+        checkpoint = ImplementationCheckpoint.model_validate(checkpoint)
+    implementation_started = checkpoint.is_started()
     workspace_dir = record.project_id or record.task_id
     if implementation_started and not (Path('workspace') / workspace_dir).is_dir():
         raise ValueError('The saved project workspace is missing; restore it before resuming implementation')
-    if checkpoint.get('in_flight_command'):
-        print('[Resume] Interrupted command outcome is unknown: ' + checkpoint['in_flight_command'])
+    if checkpoint.in_flight_command:
+        print('[Resume] Interrupted command outcome is unknown: ' + checkpoint.in_flight_command)
         print('[Resume] Inspect its side effects; the unfinished phase may execute again.')
     model = await get_chatgpt_model(model_name=model_override)
     project = record.project_id
@@ -91,7 +100,7 @@ async def run_task(
         record.status = 'PENDING'
         ledger.save(record)
         brief = await NatashaRouter(model_name=model).coordinate_request(record.prompt, task_id, project_id=project)
-        record.brief = brief.model_dump(mode='json')
+        record.brief = brief
         ledger.save(record)
     brief = TaskBrief.model_validate(record.brief)
     objective = brief.objective
@@ -104,16 +113,12 @@ async def run_task(
                 record.status = 'RESEARCHING'
                 ledger.save(record)
                 research = await OdinResearcher(model_name=model).conduct_research(task_id, objective, project_id=project)
-                record.research = research.model_dump(mode='json')
+                record.research = research
                 ledger.save(record)
             research = ResearchReport.model_validate(record.research)
-            design_context = (
-                f'Objective: {objective}\n\nSummary: {research.summary}\n\nKey findings:\n'
-                + '\n'.join(f'- {item}' for item in research.key_findings)
-                + '\n\nRecommended stack:\n' + '\n'.join(f'- {item}' for item in research.recommended_stack)
-            )
+            design_context = format_design_context(objective, research)
         else:
-            design_context = objective
+            design_context = format_design_context(objective, None)
         if brief.target_lead in ('odin', 'taghi'):
             record.status = 'ARCHITECTING'
             ledger.save(record)
@@ -123,14 +128,14 @@ async def run_task(
         if image_override:
             spec.base_image = image_override
         spec.project_id = project
-        record.specification = spec.model_dump(mode='json')
+        record.specification = spec
         ledger.save(record)
 
     spec = TechnicalSpec.model_validate(record.specification)
     record.status = 'IMPLEMENTING'
     ledger.save(record)
 
-    def save_implementation(state: dict) -> None:
+    def save_implementation(state: ImplementationCheckpoint | dict) -> None:
         record.implementation = state
         ledger.save(record)
 
@@ -175,7 +180,7 @@ async def main() -> None:
                 record.error = f'{type(error).__name__}: {error}'
                 ledger.save(record)
                 raise
-            record.result = result.model_dump(mode='json')
+            record.result = result
             record.status = 'COMPLETED' if result.status == 'success' else 'FAILED'
             record.error = None if result.status == 'success' else result.summary
             ledger.save(record)

@@ -213,6 +213,8 @@ The review note records each phase's attempt number, command, exit code, capture
 ```text
 .
 ├── main.py                    CLI, task IDs, routing, and orchestration
+├── contracts/
+│   └── __init__.py            Shared typed checkpoints, stage outputs, and handoff contracts
 ├── agents/
 │   ├── natasha.py             Structured briefs and routing
 │   ├── odin.py                Research reports

@@ -6,9 +6,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from datetime import datetime
 from urllib.parse import quote
-from pydantic import BaseModel, Field
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.models import Model
+from contracts import ResearchReport
 from tools.graphify_tool import GraphifyVaultManager
 from tools.project_notes import prepare_project
 
@@ -16,15 +16,6 @@ from tools.project_notes import prepare_project
 @dataclass
 class ResearchContext:
     retrieved_nodes: list[dict] = field(default_factory=list)
-
-
-class ResearchReport(BaseModel):
-    task_id: str
-    project_id: str | None = Field(default=None, description="Parent project ID supplied by the caller; null for standalone tasks")
-    summary: str = Field(description="Executive summary of research findings")
-    key_findings: list[str] = Field(description="Bullet points of technical insights or architectural approaches")
-    recommended_stack: list[str] = Field(description="Recommended technologies or packages to use")
-    vault_sources: list[str] = Field(default_factory=list, description="Vault-relative note paths; populated from retrieved graph results by the application")
     
 
 class OdinResearcher:

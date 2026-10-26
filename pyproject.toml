@@ -25,4 +25,4 @@ addopts = "-q"
 pythonpath = ["."]
 
 [tool.hatch.build.targets.wheel]
-packages = ["agents", "tools"]
+packages = ["agents", "tools", "contracts"]

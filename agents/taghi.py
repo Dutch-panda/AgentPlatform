@@ -2,27 +2,11 @@ import asyncio
 import re
 from pathlib import Path
 from datetime import datetime
-from pydantic import BaseModel, Field
 from pydantic_ai import Agent
 from pydantic_ai.models import Model
+from contracts import ExecutionPhase, TechnicalSpec
 from tools.graphify_tool import GraphifyVaultManager
 from tools.project_notes import prepare_project
-
-class ExecutionPhase(BaseModel):
-    phase_name: str = Field(description="Name of phase, e.g., '1-database', '2-backend', '3-frontend', '4-qa'")
-    instructions: str = Field(description="Detailed instructions and implementation requirements")
-    validation_command: str = Field(description="Terminal command to validate this phase inside the container")
-
-class TechnicalSpec(BaseModel):
-    task_id: str
-    project_id: str | None = Field(default=None, description="Parent project ID supplied by the caller; null for standalone tasks")
-    architecture_overview: str
-    required_dependencies: list[str]
-    base_image: str | None = Field(
-        default=None,
-        description="Docker base image matching the stack (e.g. 'python:3.11-slim' or 'node:18-bullseye-slim')"
-    )
-    phases: list[ExecutionPhase] = Field(description="Ordered sequential phases for Meti to execute")
 
 class TaghiArchitect:
     def __init__(self, vault_path: str = "./vault", model_name: str | Model = "openai-chat:gpt-4o"):

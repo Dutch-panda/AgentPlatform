@@ -8,28 +8,21 @@ from pydantic import BaseModel, Field
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.models import Model
 from pydantic_ai.exceptions import AgentRunError
+from contracts import (
+    ExecutionPhase,
+    ImplementationCheckpoint,
+    ImplementationResult,
+    ValidationAttempt,
+)
 from tools.docker_runner import DockerSandboxRunner
 from tools.graphify_tool import GraphifyVaultManager
 from tools.project_notes import prepare_project
-from agents.taghi import ExecutionPhase
-
 
 MAX_VALIDATION_ATTEMPTS = 3
 
 
 class ValidationAttemptsExhausted(Exception):
     pass
-
-
-@dataclass
-class ValidationAttempt:
-    phase_name: str
-    command: str
-    attempt: int
-    success: bool
-    exit_code: int
-    output: str
-    run_number: int = 1
 
 
 @dataclass
@@ -44,26 +37,23 @@ class ExecutionState:
     workspace_used: bool = False
     base_image: str | None = None
     project_id: str | None = None
-    checkpoint_callback: Callable[[dict], None] | None = None
+    checkpoint_callback: Callable[[ImplementationCheckpoint], None] | Callable[[dict], None] | None = None
+
+    def to_checkpoint(self) -> ImplementationCheckpoint:
+        return ImplementationCheckpoint(
+            phases=list(self.phases),
+            validated_phases=list(self.validated_phases),
+            validation_attempts=list(self.validation_attempts),
+            in_flight_command=self.in_flight_command,
+            interrupted_commands=list(self.interrupted_commands),
+            workspace_used=self.workspace_used,
+            base_image=self.base_image,
+            project_id=self.project_id,
+        )
 
     def save(self) -> None:
         if self.checkpoint_callback:
-            self.checkpoint_callback({
-                'phases': [phase.model_dump(mode='json') for phase in self.phases],
-                'validated_phases': list(self.validated_phases),
-                'validation_attempts': [asdict(item) for item in self.validation_attempts],
-                'in_flight_command': self.in_flight_command,
-                'interrupted_commands': list(self.interrupted_commands),
-                'workspace_used': self.workspace_used,
-                'base_image': self.base_image,
-            })
-
-class ImplementationResult(BaseModel):
-    task_id: str
-    project_id: str | None = Field(default=None, description="Parent project ID supplied by the caller; null for standalone tasks")
-    status: Literal["success", "failed"] = Field(description="Final execution status")
-    summary: str = Field(description="Summary of implemented components and test results")
-    executed_phases: list[str] = Field(description="List of phases that were executed and validated")
+            self.checkpoint_callback(self.to_checkpoint())
 
 class MetiImplementer:
     def __init__(
@@ -158,8 +148,8 @@ class MetiImplementer:
         self, task_id: str, spec_overview: str, phases: list[ExecutionPhase],
         required_dependencies: list[str] | None = None,
         project_id: str | None = None,
-        checkpoint: dict | None = None,
-        checkpoint_callback: Callable[[dict], None] | None = None,
+        checkpoint: ImplementationCheckpoint | dict | None = None,
+        checkpoint_callback: Callable[[ImplementationCheckpoint], None] | Callable[[dict], None] | None = None,
         run_number: int = 1,
         base_image: str | None = None,
     ) -> ImplementationResult:
@@ -174,24 +164,28 @@ class MetiImplementer:
         if len({phase.phase_name for phase in phases}) != len(phases):
             raise ValueError("Phase names must be unique")
         project = prepare_project(self.vault_path, project_id)
-        checkpoint = checkpoint or {}
-        if checkpoint and checkpoint.get('phases') != [phase.model_dump(mode='json') for phase in phases]:
-            raise ValueError('Checkpoint phase plan does not match the saved specification')
-        validated = checkpoint.get('validated_phases', [])
-        if not isinstance(validated, list) or validated != [phase.phase_name for phase in phases[:len(validated)]]:
-            raise ValueError('Checkpoint validated phases must be an ordered prefix of the phase plan')
-        attempts = [ValidationAttempt(**item) for item in checkpoint.get('validation_attempts', [])]
-        if attempts and run_number <= max(item.run_number for item in attempts):
-            raise ValueError('A resumed run must use a new run number')
-        interrupted = list(checkpoint.get('interrupted_commands', []))
-        if checkpoint.get('in_flight_command'):
-            interrupted.append(checkpoint['in_flight_command'])
-        effective_image = base_image or checkpoint.get('base_image')
+
+        if checkpoint is None or (isinstance(checkpoint, dict) and not checkpoint):
+            typed_checkpoint = ImplementationCheckpoint()
+        elif isinstance(checkpoint, dict):
+            typed_checkpoint = ImplementationCheckpoint.model_validate(checkpoint)
+        elif isinstance(checkpoint, ImplementationCheckpoint):
+            typed_checkpoint = checkpoint
+        else:
+            raise ValueError("Invalid checkpoint")
+
+        typed_checkpoint.validate_plan_consistency(phases, run_number=run_number)
+        validated = typed_checkpoint.validated_phases
+        attempts = list(typed_checkpoint.validation_attempts)
+        interrupted = list(typed_checkpoint.interrupted_commands)
+        if typed_checkpoint.in_flight_command:
+            interrupted.append(typed_checkpoint.in_flight_command)
+        effective_image = base_image or typed_checkpoint.base_image
         workspace_dir = project_id or task_id
         state = ExecutionState(
             task_id=task_id, phases=phases, validated_phases=list(validated), validation_attempts=attempts,
             run_number=run_number, interrupted_commands=interrupted, checkpoint_callback=checkpoint_callback,
-            workspace_used=checkpoint.get('workspace_used', False),
+            workspace_used=typed_checkpoint.workspace_used,
             base_image=effective_image,
             project_id=project_id,
         )
@@ -214,7 +208,7 @@ class MetiImplementer:
             "Please use your sandbox execution tool to implement the requirements phase by phase, run the validation commands, "
             "and output the final implementation results."
         )
-        if checkpoint:
+        if typed_checkpoint:
             prompt += (
                 f'\nResuming run {run_number} in the existing task workspace. '
                 f'Already validated phases: {state.validated_phases}. Do not rerun or modify completed phases. '

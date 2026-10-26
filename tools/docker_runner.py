@@ -8,22 +8,30 @@ DEFAULT_SANDBOX_IMAGE = os.environ.get("DEFAULT_SANDBOX_IMAGE", "node:18-bullsey
 
 
 class DockerSandboxRunner:
-    def __init__(self, workspace_path: str = "./workspace", base_image: str | None = None):
+    def __init__(
+        self,
+        workspace_path: str | Path = "./workspace",
+        base_image: str | None = None,
+        client: Any | None = None,
+    ):
         """
-        Initializes the Docker client and ensures the local workspace directory exists.
-        Uses the provided base_image, DEFAULT_SANDBOX_IMAGE env var, or node:18-bullseye-slim.
+        Initializes the runner configuration without eager Docker connection or directory creation.
+        Uses the provided client or connects lazily when code execution is requested.
         """
         self.workspace_path = Path(workspace_path).resolve()
-        self.workspace_path.mkdir(parents=True, exist_ok=True)
-        
-        try:
-            self.client = docker.from_env()
-        except Exception as e:
-            raise RuntimeError(
-                f"[DockerRunner Error] Could not connect to Docker daemon. Is Docker running? Details: {e}"
-            )
-        
+        self._client = client
         self.base_image = base_image or os.environ.get("DEFAULT_SANDBOX_IMAGE", "node:18-bullseye-slim")
+
+    @property
+    def client(self) -> Any:
+        if self._client is None:
+            try:
+                self._client = docker.from_env()
+            except Exception as e:
+                raise RuntimeError(
+                    f"[DockerRunner Error] Could not connect to Docker daemon. Is Docker running? Details: {e}"
+                )
+        return self._client
 
     def execute_code(
         self,

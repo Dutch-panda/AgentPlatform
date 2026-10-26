@@ -30,17 +30,22 @@ from tools.ui import print_agent, print_tool_call
 class MetiImplementer:
     def __init__(
         self,
-        vault_path: str = "./vault",
-        workspace_path: str = "./workspace",
+        vault_path: str | Path = "./vault",
+        workspace_path: str | Path = "./workspace",
         model_name: str | Model = "openai-chat:gpt-4o",
         base_image: str | None = None,
+        sandbox: DockerSandboxRunner | Any | None = None,
+        graph_manager: GraphifyVaultManager | None = None,
+        code_reviews_dir: str | Path | None = None,
     ):
         self.vault_path = Path(vault_path)
-        self.code_reviews_dir = self.vault_path / "code-reviews"
-        self.code_reviews_dir.mkdir(parents=True, exist_ok=True)
+        self.workspace_path = Path(workspace_path)
+        self.code_reviews_dir = (
+            Path(code_reviews_dir) if code_reviews_dir is not None else self.vault_path / "code-reviews"
+        )
 
-        self.sandbox = DockerSandboxRunner(workspace_path=workspace_path, base_image=base_image)
-        self.graph_manager = GraphifyVaultManager(vault_path=str(self.vault_path))
+        self.sandbox = sandbox or DockerSandboxRunner(workspace_path=str(self.workspace_path), base_image=base_image)
+        self.graph_manager = graph_manager or GraphifyVaultManager(vault_path=str(self.vault_path))
 
         self.agent = Agent(
             model_name,

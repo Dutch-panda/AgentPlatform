@@ -33,6 +33,7 @@ Your objective is maximum autonomy within strict security boundaries.
   - `agents/review_renderer.py`: Pure Markdown code-review report rendering.
 - **Ledger & Persistence**: Stored locally in SQLite at `.state/tasks.db`. Checkpoints are validated with `ImplementationCheckpoint.validate_plan_consistency`.
 - **Workspaces**: Generated code lives in `workspace/<project_id>/` (or `workspace/<task_id>/`).
+- **Dependency Injection**: Agents accept explicit collaborator parameters (`graph_manager`, `sandbox`, artifact directories). Constructors defer Docker client connections and directory creation until operations need them.
 - **Security & Vault Isolation**: Docker containers execute without host environment variables passed and only mount the task workspace. Vault notes and graph tools are registered and written strictly through `tools/vault_infra.py` safe writers.
 - **Terminal UI & Diagnostics**: Console visuals use `rich` via `tools/ui.py` for role-based badges (Natasha, Odin, Taghi, Meti), panels, and phase tables. Diagnostic tool calls are subdued, and Graphify subprocess stderr is suppressed unless `BUILDRELAY_DEBUG=1` is set.
 

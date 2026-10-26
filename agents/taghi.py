@@ -15,13 +15,18 @@ from tools.vault_infra import (
 from tools.ui import print_agent
 
 class TaghiArchitect:
-    def __init__(self, vault_path: str = "./vault", model_name: str | Model = "openai-chat:gpt-4o"):
+    def __init__(
+        self,
+        vault_path: str | Path = "./vault",
+        model_name: str | Model = "openai-chat:gpt-4o",
+        graph_manager: GraphifyVaultManager | None = None,
+        specs_dir: str | Path | None = None,
+        research_dir: str | Path | None = None,
+    ):
         self.vault_path = Path(vault_path)
-        self.specs_dir = self.vault_path / "specs"
-        self.specs_dir.mkdir(parents=True, exist_ok=True)
-        self.research_dir = self.vault_path / "research"
-        self.research_dir.mkdir(parents=True, exist_ok=True)
-        self.graph_manager = GraphifyVaultManager(vault_path=str(self.vault_path))
+        self.specs_dir = Path(specs_dir) if specs_dir is not None else self.vault_path / "specs"
+        self.research_dir = Path(research_dir) if research_dir is not None else self.vault_path / "research"
+        self.graph_manager = graph_manager or GraphifyVaultManager(vault_path=str(self.vault_path))
 
         self.agent = Agent(
             model_name,
@@ -77,6 +82,7 @@ class TaghiArchitect:
 
         timestamp = datetime.now().strftime("%Y-%m-%d")
         note_filename = self.specs_dir / f"spec-{task_id}.md"
+        note_filename.parent.mkdir(parents=True, exist_ok=True)
 
         markdown_content = f"""---
 id: "spec-{task_id}"

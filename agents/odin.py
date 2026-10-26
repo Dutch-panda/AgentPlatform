@@ -25,11 +25,16 @@ class ResearchContext:
     
 
 class OdinResearcher:
-    def __init__(self, vault_path: str = "./vault", model_name: str | Model = "openai-chat:gpt-4o"):
+    def __init__(
+        self,
+        vault_path: str | Path = "./vault",
+        model_name: str | Model = "openai-chat:gpt-4o",
+        graph_manager: GraphifyVaultManager | None = None,
+        research_dir: str | Path | None = None,
+    ):
         self.vault_path = Path(vault_path)
-        self.research_dir = self.vault_path / "research"
-        self.research_dir.mkdir(parents=True, exist_ok=True)
-        self.graph_manager = GraphifyVaultManager(vault_path=str(self.vault_path))
+        self.research_dir = Path(research_dir) if research_dir is not None else self.vault_path / "research"
+        self.graph_manager = graph_manager or GraphifyVaultManager(vault_path=str(self.vault_path))
 
         # Initialize Pydantic AI Agent
         self.agent = Agent(
@@ -74,6 +79,7 @@ class OdinResearcher:
 
         timestamp = datetime.now().strftime("%Y-%m-%d")
         note_filename = self.research_dir / f"research-{task_id}.md"
+        note_filename.parent.mkdir(parents=True, exist_ok=True)
         source_links = [f"[[{Path(source).with_suffix('').as_posix()}]]" for source in report.vault_sources]
         links = json.dumps([f"[[{task_id}-brief]]", *source_links], ensure_ascii=False)
 

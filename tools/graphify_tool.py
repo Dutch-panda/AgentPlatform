@@ -6,22 +6,28 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional
 
 class GraphifyVaultManager:
-    def __init__(self, vault_path: str = "./vault", output_dir: Optional[str] = None):
+    def __init__(
+        self,
+        vault_path: str = "./vault",
+        output_dir: Optional[str] = None,
+        ensure_dirs: bool = True,
+    ):
         self.vault_path = Path(vault_path).resolve()
         # Graphify typically outputs graph artifacts into a target directory (defaults to vault/.graphify)
         self.output_dir = Path(output_dir).resolve() if output_dir else self.vault_path / ".graphify"
         self.graph_json_path = self.output_dir / "graph.json"
-        
-        # Ensure directories exist
-        self.vault_path.mkdir(parents=True, exist_ok=True)
-        self.output_dir.mkdir(parents=True, exist_ok=True)
-        
+
+        if ensure_dirs:
+            self.vault_path.mkdir(parents=True, exist_ok=True)
+            self.output_dir.mkdir(parents=True, exist_ok=True)
+
     def build_graph(self, incremental: bool = True) -> bool:
         """
         Triggers the graphify CLI to parse the Obsidian vault and build/update the knowledge graph.
         """
         if not self.vault_path.exists():
             raise FileNotFoundError(f"Vault path does not exist: {self.vault_path}")
+        self.output_dir.mkdir(parents=True, exist_ok=True)
 
         cmd = [sys.executable, "-m", "graphify", "extract", str(self.vault_path)]
         if not incremental:

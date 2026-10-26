@@ -17,11 +17,16 @@ from tools.vault_infra import (
 from tools.ui import print_agent
 
 class NatashaRouter:
-    def __init__(self, vault_path: str = "./vault", model_name: str | Model = "openai-chat:gpt-4o"):
+    def __init__(
+        self,
+        vault_path: str | Path = "./vault",
+        model_name: str | Model = "openai-chat:gpt-4o",
+        graph_manager: GraphifyVaultManager | None = None,
+        tasks_dir: str | Path | None = None,
+    ):
         self.vault_path = Path(vault_path)
-        self.tasks_dir = self.vault_path / "tasks"
-        self.tasks_dir.mkdir(parents=True, exist_ok=True)
-        self.graph_manager = GraphifyVaultManager(vault_path=str(self.vault_path))
+        self.tasks_dir = Path(tasks_dir) if tasks_dir is not None else self.vault_path / "tasks"
+        self.graph_manager = graph_manager or GraphifyVaultManager(vault_path=str(self.vault_path))
 
         self.agent = Agent(
             model_name,
@@ -57,6 +62,7 @@ class NatashaRouter:
 
         timestamp = datetime.now().strftime("%Y-%m-%d")
         note_filename = self.tasks_dir / f"{task_brief.task_id}-brief.md"
+        note_filename.parent.mkdir(parents=True, exist_ok=True)
         
         markdown_content = f"""---
 id: "{task_brief.task_id}"

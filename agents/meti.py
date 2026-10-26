@@ -1,59 +1,29 @@
 import asyncio
 import re
-from dataclasses import asdict, dataclass, field
-from typing import Callable, Literal
 from pathlib import Path
-from datetime import datetime
-from pydantic import BaseModel, Field
+from typing import Callable
+
 from pydantic_ai import Agent, RunContext
-from pydantic_ai.models import Model
 from pydantic_ai.exceptions import AgentRunError
+from pydantic_ai.models import Model
+
 from contracts import (
     ExecutionPhase,
     ImplementationCheckpoint,
     ImplementationResult,
     ValidationAttempt,
 )
+from agents.execution_policy import (
+    MAX_VALIDATION_ATTEMPTS,
+    ExecutionPolicy,
+    ExecutionState,
+    ValidationAttemptsExhausted,
+)
+from agents.review_renderer import render_review_markdown, write_review_note
 from tools.docker_runner import DockerSandboxRunner
 from tools.graphify_tool import GraphifyVaultManager
 from tools.project_notes import prepare_project
 
-MAX_VALIDATION_ATTEMPTS = 3
-
-
-class ValidationAttemptsExhausted(Exception):
-    pass
-
-
-@dataclass
-class ExecutionState:
-    task_id: str
-    phases: list[ExecutionPhase]
-    validated_phases: list[str] = field(default_factory=list)
-    validation_attempts: list[ValidationAttempt] = field(default_factory=list)
-    run_number: int = 1
-    in_flight_command: str | None = None
-    interrupted_commands: list[str] = field(default_factory=list)
-    workspace_used: bool = False
-    base_image: str | None = None
-    project_id: str | None = None
-    checkpoint_callback: Callable[[ImplementationCheckpoint], None] | Callable[[dict], None] | None = None
-
-    def to_checkpoint(self) -> ImplementationCheckpoint:
-        return ImplementationCheckpoint(
-            phases=list(self.phases),
-            validated_phases=list(self.validated_phases),
-            validation_attempts=list(self.validation_attempts),
-            in_flight_command=self.in_flight_command,
-            interrupted_commands=list(self.interrupted_commands),
-            workspace_used=self.workspace_used,
-            base_image=self.base_image,
-            project_id=self.project_id,
-        )
-
-    def save(self) -> None:
-        if self.checkpoint_callback:
-            self.checkpoint_callback(self.to_checkpoint())
 
 class MetiImplementer:
     def __init__(
@@ -66,7 +36,7 @@ class MetiImplementer:
         self.vault_path = Path(vault_path)
         self.code_reviews_dir = self.vault_path / "code-reviews"
         self.code_reviews_dir.mkdir(parents=True, exist_ok=True)
-        
+
         self.sandbox = DockerSandboxRunner(workspace_path=workspace_path, base_image=base_image)
         self.graph_manager = GraphifyVaultManager(vault_path=str(self.vault_path))
 
@@ -85,7 +55,7 @@ class MetiImplementer:
                 "Each phase has at most three validation attempts total (the initial attempt and two retries). "
                 "The workflow stops when that limit is exhausted. "
                 "Each command starts a fresh container; keep durable files and dependencies in the mounted workspace."
-            )
+            ),
         )
 
         # --- BINDING DOCKER SANDBOX TOOL TO METI ---
@@ -96,56 +66,35 @@ class MetiImplementer:
             """
             Run a shell command, test suite, or installer inside the secure Docker container workspace.
             """
-            exhausted = next((item for item in ctx.deps.validation_attempts
-                              if item.run_number == ctx.deps.run_number
-                              and not item.success and item.attempt >= MAX_VALIDATION_ATTEMPTS), None)
-            if exhausted:
-                raise ValidationAttemptsExhausted(
-                    f"Phase {exhausted.phase_name} failed after {MAX_VALIDATION_ATTEMPTS} validation attempts."
-                )
-            if phase_name is None and any(shell_command == phase.validation_command for phase in ctx.deps.phases):
-                return {"success": False, "exit_code": -1, "output": "Provide the phase_name when running its validation command"}
-            if phase_name is not None:
-                remaining = ctx.deps.phases[len(ctx.deps.validated_phases):]
-                if not remaining or phase_name != remaining[0].phase_name:
-                    return {"success": False, "exit_code": -1, "output": "Validate the next unvalidated phase in order"}
-                if shell_command != remaining[0].validation_command:
-                    return {"success": False, "exit_code": -1, "output": "Use the phase's exact validation command"}
+            rejection = ExecutionPolicy.check_pre_execution(ctx.deps, shell_command, phase_name)
+            if rejection is not None:
+                return rejection
+
             print(f"[Meti Sandbox Tool] Executing: {shell_command}")
             ctx.deps.in_flight_command = shell_command
             ctx.deps.workspace_used = True
             ctx.deps.save()
+
             workspace_dir = ctx.deps.project_id or ctx.deps.task_id
             call_kwargs = {"task_id": workspace_dir}
             if ctx.deps.base_image is not None:
                 call_kwargs["image"] = ctx.deps.base_image
+
             result = self.sandbox.execute_code(shell_command, **call_kwargs)
             ctx.deps.in_flight_command = None
+
             if phase_name is not None:
-                attempt = 1 + sum(item.phase_name == phase_name and item.run_number == ctx.deps.run_number
-                                  for item in ctx.deps.validation_attempts)
-                passed = bool(result.get("success")) and result.get("exit_code") == 0
-                ctx.deps.validation_attempts.append(ValidationAttempt(
-                    phase_name=phase_name, command=shell_command, attempt=attempt,
-                    success=passed, exit_code=result.get("exit_code", -1), output=result.get("output", ""),
-                    run_number=ctx.deps.run_number,
-                ))
-                if passed:
-                    ctx.deps.validated_phases.append(phase_name)
-                elif attempt >= MAX_VALIDATION_ATTEMPTS:
-                    ctx.deps.save()
-                    raise ValidationAttemptsExhausted(
-                        f"Phase {phase_name} failed after {MAX_VALIDATION_ATTEMPTS} validation attempts."
-                    )
-                else:
-                    result = {**result, "validation_attempt": attempt,
-                              "attempts_remaining": MAX_VALIDATION_ATTEMPTS - attempt,
-                              "recovery": "Inspect the logs, repair the implementation, and retry this phase's exact validation command."}
+                result = ExecutionPolicy.record_validation_attempt(
+                    ctx.deps, shell_command, phase_name, result
+                )
             ctx.deps.save()
             return result
 
     async def execute_specification(
-        self, task_id: str, spec_overview: str, phases: list[ExecutionPhase],
+        self,
+        task_id: str,
+        spec_overview: str,
+        phases: list[ExecutionPhase],
         required_dependencies: list[str] | None = None,
         project_id: str | None = None,
         checkpoint: ImplementationCheckpoint | dict | None = None,
@@ -183,8 +132,13 @@ class MetiImplementer:
         effective_image = base_image or typed_checkpoint.base_image
         workspace_dir = project_id or task_id
         state = ExecutionState(
-            task_id=task_id, phases=phases, validated_phases=list(validated), validation_attempts=attempts,
-            run_number=run_number, interrupted_commands=interrupted, checkpoint_callback=checkpoint_callback,
+            task_id=task_id,
+            phases=phases,
+            validated_phases=list(validated),
+            validation_attempts=attempts,
+            run_number=run_number,
+            interrupted_commands=interrupted,
+            checkpoint_callback=checkpoint_callback,
             workspace_used=typed_checkpoint.workspace_used,
             base_image=effective_image,
             project_id=project_id,
@@ -210,12 +164,12 @@ class MetiImplementer:
         )
         if typed_checkpoint:
             prompt += (
-                f'\nResuming run {run_number} in the existing task workspace. '
-                f'Already validated phases: {state.validated_phases}. Do not rerun or modify completed phases. '
-                'Continue with the next unvalidated phase; unfinished phases have a fresh three-attempt budget.\n'
-                f'Interrupted commands with unknown outcomes: {state.interrupted_commands}. '
-                'Inspect existing files and side effects before repeating interrupted work.\n'
-                f'Prior validation history: {[asdict(item) for item in attempts]}\n'
+                f"\nResuming run {run_number} in the existing task workspace. "
+                f"Already validated phases: {state.validated_phases}. Do not rerun or modify completed phases. "
+                "Continue with the next unvalidated phase; unfinished phases have a fresh three-attempt budget.\n"
+                f"Interrupted commands with unknown outcomes: {state.interrupted_commands}. "
+                "Inspect existing files and side effects before repeating interrupted work.\n"
+                f"Prior validation history: {[item.to_dict() if hasattr(item, 'to_dict') else item for item in attempts]}\n"
             )
 
         try:
@@ -223,99 +177,49 @@ class MetiImplementer:
             while True:
                 if len(state.validated_phases) == len(phases):
                     implementation_result = ImplementationResult(
-                        task_id=task_id, status='success', summary='All saved phases have passed validation.',
+                        task_id=task_id,
+                        status="success",
+                        summary="All saved phases have passed validation.",
                         executed_phases=list(state.validated_phases),
                     )
                     break
                 previous_attempts = len(state.validation_attempts)
                 result = await self.agent.run(prompt, deps=state, message_history=history)
                 implementation_result = result.output
-                pending = phases[len(state.validated_phases):]
-                failed_phase = pending and any(
-                    item.phase_name == pending[0].phase_name and not item.success
-                    and item.run_number == run_number
-                    for item in state.validation_attempts
-                )
-                if not failed_phase or len(state.validation_attempts) == previous_attempts:
+
+                if not ExecutionPolicy.should_trigger_recovery(state, phases, previous_attempts):
                     break
+
                 # If the model finishes early after a failed check, return its actual logs once more.
-                # Every further recovery round must perform a validation attempt to continue.
                 history = result.all_messages()
-                last = state.validation_attempts[-1]
-                prompt = (
-                    f"Phase {last.phase_name} is still unvalidated after attempt {last.attempt}. "
-                    f"There are {MAX_VALIDATION_ATTEMPTS - last.attempt} validation attempts remaining. "
-                    "Inspect these logs, repair the implementation, and run the same phase's exact validation command.\n"
-                    f"{last.output}"
-                )
+                prompt = ExecutionPolicy.build_recovery_prompt(state)
+
         except (ValidationAttemptsExhausted, AgentRunError) as error:
-            implementation_result = ImplementationResult(
-                task_id=task_id, status="failed", summary=str(error), executed_phases=[],
+            implementation_result = ExecutionPolicy.finalize_result(
+                task_id=task_id,
+                project_id=project_id,
+                state=state,
+                phases=phases,
+                error=error,
             )
-        implementation_result.task_id = task_id
-        implementation_result.project_id = project_id
-        implementation_result.executed_phases = list(state.validated_phases)
-        if implementation_result.status == "success" and len(state.validated_phases) != len(phases):
-            implementation_result.status = "failed"
-            implementation_result.summary += "\nNot all phases passed sandbox validation."
+        else:
+            implementation_result = ExecutionPolicy.finalize_result(
+                task_id=task_id,
+                project_id=project_id,
+                state=state,
+                phases=phases,
+                model_result=implementation_result,
+            )
 
         # Write code review note to vault
-        timestamp = datetime.now().strftime("%Y-%m-%d")
-        note_filename = self.code_reviews_dir / f"review-{task_id}.md"
-
-        executed_phases_list = implementation_result.executed_phases
-        base_image_section = (
-            f"## Base Image\n`{state.base_image}`\n"
-            if isinstance(state.base_image, str) and state.base_image else ""
+        markdown_content = render_review_markdown(
+            task_id=task_id,
+            result=implementation_result,
+            phases=phases,
+            state=state,
+            project=project,
         )
-        markdown_content = f"""---
-id: "review-{task_id}"
-type: "code-review"
-agent: "meti"
-task_id: "{task_id}"
-{project.frontmatter}created_at: "{timestamp}"
-links: ["[[spec-{task_id}]]", "[[{task_id}-brief]]"]
----
-# Implementation Code Review: {task_id}
-
-{project.body}## Status: `{implementation_result.status.upper()}`
-{base_image_section}
-## Summary
-{implementation_result.summary}
-
-## Executed Phases
-"""
-        for phase_name in executed_phases_list:
-            markdown_content += f"- {phase_name}\n"
-
-        markdown_content += "\n## Validation attempts\n"
-        for command in state.interrupted_commands:
-            markdown_content += f'\nInterrupted command (outcome unknown): {command!r}\n'
-        for phase in phases:
-            attempts = [item for item in state.validation_attempts if item.phase_name == phase.phase_name]
-            if phase.phase_name in state.validated_phases:
-                resolution = "passed on retry" if len(attempts) > 1 else "passed"
-            elif len([item for item in attempts if item.run_number == run_number]) >= MAX_VALIDATION_ATTEMPTS:
-                resolution = "retry limit exhausted"
-            elif attempts:
-                resolution = "failed; agent stopped before retry limit"
-            else:
-                resolution = "not validated"
-            markdown_content += f"\n### {phase.phase_name}: {resolution}\n"
-            for attempt in attempts:
-                markdown_content += (
-                    f"\nRun {attempt.run_number} — Attempt {attempt.attempt}/{MAX_VALIDATION_ATTEMPTS}: "
-                    f"{'PASS' if attempt.success else 'FAIL'} (exit {attempt.exit_code})\n\n"
-                )
-                # Container output is untrusted Markdown; fence it without allowing embedded fences to close it.
-                longest_backticks = max(
-                    (len(match.group()) for match in re.finditer(r"`+", attempt.command + attempt.output)),
-                    default=0,
-                )
-                fence = "`" * max(3, longest_backticks + 1)
-                markdown_content += f"{fence}text\n$ {attempt.command}\n{attempt.output}\n{fence}\n"
-
-        note_filename.write_text(markdown_content, encoding="utf-8")
+        note_filename = write_review_note(self.code_reviews_dir, task_id, markdown_content)
         print(f"[Meti] Saved code review note to: {note_filename}")
 
         # Update vault graph

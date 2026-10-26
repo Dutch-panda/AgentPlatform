@@ -210,7 +210,9 @@ Arrows show which component uses another. Shared contracts define stage outputs,
 │   ├── natasha.py             Structured briefs and routing
 │   ├── odin.py                Research reports
 │   ├── taghi.py               Specifications and execution phases
-│   └── meti.py                Docker tools and phase validation tracking
+│   ├── execution_policy.py    Phase validation ordering, retry budgets, and recovery policy
+│   ├── review_renderer.py     Markdown code review report rendering
+│   └── meti.py                Implementation coordination and Docker tools
 ├── tools/
 │   ├── chatgpt_auth.py        OAuth credential storage and model setup
 │   ├── docker_runner.py      Container lifecycle and workspace mounts

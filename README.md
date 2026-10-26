@@ -224,7 +224,8 @@ Arrows show which component uses another. Shared contracts define stage outputs,
 │   ├── docker_runner.py      Container lifecycle and workspace mounts
 │   ├── graphify_tool.py      Graph extraction, node search, and neighbors
 │   ├── project_notes.py      Project IDs, note creation, and shared links
-│   └── task_ledger.py        SQLite checkpoints and per-task process locks
+│   ├── task_ledger.py        SQLite checkpoints and per-task process locks
+│   └── vault_infra.py        Safe Markdown writing, graph tool wiring, and graph updates
 ├── .github/workflows/tests.yml  Automated platform tests
 ├── tests/                    Deterministic platform tests
 ├── scripts/validate.py        Local test runner

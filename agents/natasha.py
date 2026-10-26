@@ -9,6 +9,11 @@ from pydantic_ai.models import Model
 from contracts import TaskBrief
 from tools.graphify_tool import GraphifyVaultManager
 from tools.project_notes import prepare_project
+from tools.vault_infra import (
+    register_graph_tools,
+    register_note_writer_tool,
+    update_vault_graph,
+)
 
 class NatashaRouter:
     def __init__(self, vault_path: str = "./vault", model_name: str | Model = "openai-chat:gpt-4o"):
@@ -28,35 +33,15 @@ class NatashaRouter:
             )
         )
         # --- BINDING TOOLS TO Natasha ---
-        @self.agent.tool_plain
-        def query_vault_knowledge(search_term: str) -> list[dict]:
-            """
-            Search the Obsidian vault graph for existing nodes, tasks, or past specs matching a term.
-            """
-            print(f"[Natasha Tool Called] Searching graph for: {search_term}")
-            return self.graph_manager.query_nodes(search_term)
-
-        @self.agent.tool_plain
-        def get_related_notes(node_id: str) -> list[dict]:
-            """
-            Get direct neighbor connections for a specific note ID in the vault graph.
-            """
-            print(f"[Natasha Tool Called] Finding neighbors for node: {node_id}")
-            return self.graph_manager.get_neighbors(node_id)
-        
-        @self.agent.tool_plain
-        def write_task_note(filename: str, content: str) -> str:
-            """
-            Safely write a markdown task report into the vault/task directory.
-            """
-            root = self.tasks_dir.resolve()
-            file_path = (root / filename).resolve()
-            if not file_path.is_relative_to(root) or file_path == root or file_path.suffix.lower() != ".md":
-                raise ValueError("Task notes must be Markdown files within the Task directory")
-            file_path.parent.mkdir(parents=True, exist_ok=True)
-            file_path.write_text(content, encoding="utf-8")
-            print(f"[Natasha Tool] Wrote note directly to vault: {file_path}")
-            return f"Successfully saved note to {file_path}"
+        register_graph_tools(self.agent, self.graph_manager, "Natasha")
+        register_note_writer_tool(
+            self.agent,
+            self.tasks_dir,
+            tool_name="write_task_note",
+            category="Task",
+            directory_name="Task",
+            agent_name="Natasha",
+        )
 
     async def coordinate_request(self, user_prompt: str, task_id: str, project_id: str | None = None) -> TaskBrief:
         print(f"[Natasha] Routing prompt for task {task_id}: '{user_prompt}'")
@@ -96,6 +81,5 @@ links: []
         note_filename.write_text(markdown_content, encoding="utf-8")
         print(f"[Natasha] Created master task note at: {note_filename}")
 
-        if not await asyncio.to_thread(self.graph_manager.build_graph, incremental=True):
-            print(f"[Graphify Warning] Note saved to {note_filename}, but graph update failed; continuing without updated graph context")
+        await update_vault_graph(self.graph_manager, note_filename)
         return task_brief

@@ -11,6 +11,11 @@ from pydantic_ai.models import Model
 from contracts import ResearchReport
 from tools.graphify_tool import GraphifyVaultManager
 from tools.project_notes import prepare_project
+from tools.vault_infra import (
+    register_note_writer_tool,
+    register_provenance_graph_tools,
+    update_vault_graph,
+)
 
 
 @dataclass
@@ -39,39 +44,15 @@ class OdinResearcher:
         )
 
         # --- BINDING TOOLS TO Odin ---
-        @self.agent.tool
-        def query_vault_knowledge(ctx: RunContext[ResearchContext], search_term: str) -> list[dict]:
-            """
-            Search the Obsidian vault graph for existing nodes, tasks, or past specs matching a term.
-            """
-            print(f"[Odin Tool Called] Searching graph for: {search_term}")
-            nodes = self.graph_manager.query_nodes(search_term)
-            ctx.deps.retrieved_nodes.extend(nodes)
-            return nodes
-
-        @self.agent.tool
-        def get_related_notes(ctx: RunContext[ResearchContext], node_id: str) -> list[dict]:
-            """
-            Get direct neighbor connections for a specific note ID in the vault graph.
-            """
-            print(f"[Odin Tool Called] Finding neighbors for node: {node_id}")
-            nodes = self.graph_manager.get_neighbors(node_id)
-            ctx.deps.retrieved_nodes.extend(nodes)
-            return nodes
-        
-        @self.agent.tool_plain
-        def write_research_note(filename: str, content: str) -> str:
-            """
-            Safely write a markdown research report into the vault/research directory.
-            """
-            root = self.research_dir.resolve()
-            file_path = (root / filename).resolve()
-            if not file_path.is_relative_to(root) or file_path == root or file_path.suffix.lower() != ".md":
-                raise ValueError("Research notes must be Markdown files within the research directory")
-            file_path.parent.mkdir(parents=True, exist_ok=True)
-            file_path.write_text(content, encoding="utf-8")
-            print(f"[Odin Tool] Wrote note directly to vault: {file_path}")
-            return f"Successfully saved note to {file_path}"
+        register_provenance_graph_tools(self.agent, self.graph_manager, "Odin")
+        register_note_writer_tool(
+            self.agent,
+            self.research_dir,
+            tool_name="write_research_note",
+            category="Research",
+            directory_name="research",
+            agent_name="Odin",
+        )
 
     async def conduct_research(self, task_id: str, objective: str, project_id: str | None = None) -> ResearchReport:
         print(f"[Odin] Checking task brief and conducting research for: {task_id}")
@@ -131,6 +112,5 @@ links: {links}
         note_filename.write_text(markdown_content, encoding="utf-8")
         print(f"[Odin] Saved research report to: {note_filename}")
 
-        if not await asyncio.to_thread(self.graph_manager.build_graph, incremental=True):
-            print(f"[Graphify Warning] Note saved to {note_filename}, but graph update failed; continuing without updated graph context")
+        await update_vault_graph(self.graph_manager, note_filename)
         return report

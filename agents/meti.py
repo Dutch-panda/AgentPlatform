@@ -23,6 +23,7 @@ from agents.review_renderer import render_review_markdown, write_review_note
 from tools.docker_runner import DockerSandboxRunner
 from tools.graphify_tool import GraphifyVaultManager
 from tools.project_notes import prepare_project
+from tools.vault_infra import update_vault_graph
 
 
 class MetiImplementer:
@@ -222,7 +223,5 @@ class MetiImplementer:
         note_filename = write_review_note(self.code_reviews_dir, task_id, markdown_content)
         print(f"[Meti] Saved code review note to: {note_filename}")
 
-        # Update vault graph
-        if not await asyncio.to_thread(self.graph_manager.build_graph, incremental=True):
-            print(f"[Graphify Warning] Note saved to {note_filename}, but graph update failed; continuing without updated graph context")
+        await update_vault_graph(self.graph_manager, note_filename)
         return implementation_result

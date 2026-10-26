@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="354" viewBox="0 0 760 354" role="img" aria-labelledby="title desc">
+<title id="title">Task workflow</title><desc id="desc">Natasha routes a prompt to research, design, or implementation. Research continues through Odin, Taghi, and Meti; design through Taghi and Meti; direct builds go to Meti. Meti runs Docker commands and validates phases.</desc>
+<defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8" fill="#b8b0a4"/></marker></defs>
+<rect width="760" height="354" rx="12" fill="#151514"/>
+<style>text{font-family:Arial,Helvetica,sans-serif;fill:#f2eee7;font-size:18px}.sub{fill:#bbb4aa;font-size:15px}.accent{fill:#ffac75}.line{fill:none;stroke:#b8b0a4;stroke-width:1.6;marker-end:url(#arrow)}.box{fill:#23221f;stroke:#565048;stroke-width:1}</style>
+<rect class="box" x="28" y="24" width="156" height="56" rx="7"/>
+<text x="106.0" y="58.0" text-anchor="middle">Your prompt</text>
+<rect class="box" x="242" y="24" width="320" height="56" rx="7"/>
+<text x="402.0" y="49.0" text-anchor="middle" class="accent">Natasha</text>
+<text class="sub" x="402.0" y="72.0" text-anchor="middle">Brief and route</text>
+<path class="line" d="M184 52 H242"/>
+<path class="line" d="M402 80 V100 H72 V145 H128"/>
+<path class="line" d="M72 145 V209 H128"/>
+<path class="line" d="M72 209 V273 H128"/>
+<rect class="box" x="128" y="120" width="580" height="50" rx="7"/>
+<text x="418.0" y="151.0" text-anchor="middle">Research: Odin → Taghi → Meti</text>
+<rect class="box" x="128" y="184" width="580" height="50" rx="7"/>
+<text x="418.0" y="215.0" text-anchor="middle">Design: Taghi → Meti</text>
+<rect class="box" x="128" y="248" width="580" height="50" rx="7"/>
+<text x="418.0" y="279.0" text-anchor="middle">Build: Meti</text>
+<text class="sub" x="380" y="331" text-anchor="middle">All routes: Meti → Docker commands → Phase validation → Result</text>
+</svg>

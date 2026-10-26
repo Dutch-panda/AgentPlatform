@@ -12,7 +12,7 @@ Describe your development task. BuildRelay coordinates research, design, impleme
 ![Docker](https://img.shields.io/badge/execution-Docker-2496ED?style=flat-square&logo=docker&logoColor=white)
 ![Obsidian](https://img.shields.io/badge/notes-Obsidian-7C3AED?style=flat-square&logo=obsidian&logoColor=white)
 
-[Website](https://dutch-panda.github.io/BuildRelay/) · [Tests](#testing) · [CI results](https://github.com/Dutch-panda/BuildRelay/actions/workflows/tests.yml) · [Quick start](#quick-start) · [Workflow](#how-the-workflow-runs) · [Resume a task](#resume-a-task) · [Project memory](#keep-related-tasks-connected) · [Repository](#repository-map) · [Troubleshooting](#troubleshooting)
+[Website](https://dutch-panda.github.io/BuildRelay/) · [Tests](#testing) · [CI results](https://github.com/Dutch-panda/BuildRelay/actions/workflows/tests.yml) · [Quick start](#quick-start) · [Workflow](#how-the-workflow-runs) · [Resume a task](#resume-a-task) · [Project memory](#keep-related-tasks-connected) · [Components](#component-connections) · [Repository](#repository-map) · [Troubleshooting](#troubleshooting)
 
 </div>
 
@@ -22,15 +22,7 @@ BuildRelay is a Python CLI that coordinates an engineering team built with Pydan
 
 ## How the workflow runs
 
-```text
-Prompt → Natasha · brief and routing
-              │
-              ├─ Research → Odin → Taghi → Meti
-              ├─ Design   → Taghi → Meti
-              └─ Build    → Meti
-
-Meti → Docker commands → Phase checks → Result
-```
+<img src="docs/diagrams/workflow.svg" alt="Natasha routes requests through research, design, or direct implementation, ending with Meti and validation." width="760">
 
 - **Natasha — coordinator:** produces a typed task brief and chooses the next lead. Can query existing vault nodes and connections.
 - **Odin — researcher:** searches vault graph metadata and related nodes to produce findings and a recommended stack. Research notes automatically list resolved source notes. The current agent has vault tools; no dedicated web-search tool is registered.
@@ -151,14 +143,7 @@ project: "[[projects/task-tracker]]"
 
 Project IDs accept letters, digits, underscores, and hyphens, and must start with a letter or digit. Project grouping links the notes and codebases: tasks sharing a project ID share the same workspace (`workspace/<project_id>/`), allowing successive tasks to build upon existing project modules and tests. Resumed runs reuse that task's workspace. Standalone tasks without a project ID use `workspace/<task_id>/`.
 
-```text
-Briefs ──────────┐
-Research ────────┤
-Specifications ──┼──→ Shared project note
-Reviews ─────────┘    projects/<project_id>.md
-
-Saved notes → Graphify (when available) → Agent queries
-```
+<img src="docs/diagrams/saved-data.svg" alt="Stage notes connect to project notes and Graphify; the SQLite ledger saves resume progress, and Docker writes generated code to workspaces." width="760">
 
 Open **`vault/` as an Obsidian vault** to browse the notes and project wikilinks. Those links work independently of Graphify.
 
@@ -207,6 +192,12 @@ When a validation command fails, Meti receives its output and can issue repair c
 If the model returns a final response while a failed phase still has attempts remaining, the application sends the failure logs back into the same conversation. If that recovery round returns without another validation attempt, the run ends as failed rather than repeatedly asking without progress. Model-run errors and retry exhaustion also produce a failed review note.
 
 The review note records each phase's attempt number, command, exit code, captured output, and final resolution: passed, passed on retry, retry limit exhausted, stopped early, or not validated. Docker wait/execution errors preserve available container logs; image acquisition errors return failure feedback. This is bounded recovery within a run; `--resume` reuses saved progress and starts a new run budget. Neither mechanism guarantees that an autonomous repair will succeed.
+
+## Component connections
+
+<img src="docs/diagrams/components.svg" alt="Main coordinates model setup, agents, and the task ledger. Agents use vault tools, shared contracts, and Meti’s Docker runner." width="760">
+
+Arrows show which component uses another. Shared contracts define stage outputs, handoffs, and checkpoints used by orchestration, agents, and the ledger. Vault tools support graph lookup and project-note links; each agent saves its own stage artifacts.
 
 ## Repository map
 

@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="396" viewBox="0 0 760 396" role="img" aria-labelledby="title desc">
+<title id="title">Component dependencies</title><desc id="desc">Main uses model setup, the task ledger, and the agents. The agents use shared contracts, graph and note tools; Meti uses the Docker runner. This is a simplified view of runtime dependencies, not an exhaustive import graph.</desc>
+<defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8" fill="#b8b0a4"/></marker></defs>
+<rect width="760" height="396" rx="12" fill="#151514"/>
+<style>text{font-family:Arial,Helvetica,sans-serif;fill:#f2eee7;font-size:18px}.sub{fill:#bbb4aa;font-size:15px}.accent{fill:#ffac75}.line{fill:none;stroke:#b8b0a4;stroke-width:1.6;marker-end:url(#arrow)}.box{fill:#23221f;stroke:#565048;stroke-width:1}</style>
+<rect class="box" x="260" y="24" width="240" height="64" rx="7"/>
+<text x="380.0" y="53.0" text-anchor="middle" class="accent">main.py</text>
+<text class="sub" x="380.0" y="76.0" text-anchor="middle">CLI and orchestration</text>
+<path class="line" d="M380 88 V112 H140 V136"/>
+<path class="line" d="M380 88 V112 H380 V136"/>
+<path class="line" d="M380 88 V112 H620 V136"/>
+<rect class="box" x="30" y="136" width="220" height="64" rx="7"/>
+<text x="140.0" y="165.0" text-anchor="middle">Model setup</text>
+<text class="sub" x="140.0" y="188.0" text-anchor="middle">tools/chatgpt_auth.py</text>
+<rect class="box" x="270" y="136" width="220" height="64" rx="7"/>
+<text x="380.0" y="165.0" text-anchor="middle">Agents</text>
+<text class="sub" x="380.0" y="188.0" text-anchor="middle">Natasha · Odin · Taghi · Meti</text>
+<rect class="box" x="510" y="136" width="220" height="64" rx="7"/>
+<text x="620.0" y="165.0" text-anchor="middle">Task ledger</text>
+<text class="sub" x="620.0" y="188.0" text-anchor="middle">tools/task_ledger.py</text>
+<path class="line" d="M380 200 V222 H140 V248"/>
+<path class="line" d="M380 200 V248"/>
+<path class="line" d="M380 200 V222 H620 V248"/>
+<rect class="box" x="30" y="248" width="220" height="64" rx="7"/>
+<text x="140.0" y="277.0" text-anchor="middle">Vault tools</text>
+<text class="sub" x="140.0" y="300.0" text-anchor="middle">Graph lookup and note links</text>
+<rect class="box" x="270" y="248" width="220" height="64" rx="7"/>
+<text x="380.0" y="277.0" text-anchor="middle">Docker runner</text>
+<text class="sub" x="380.0" y="300.0" text-anchor="middle">Meti’s command execution</text>
+<rect class="box" x="510" y="248" width="220" height="64" rx="7"/>
+<text x="620.0" y="277.0" text-anchor="middle">Shared contracts</text>
+<text class="sub" x="620.0" y="300.0" text-anchor="middle">contracts/</text>
+<path class="line" d="M620 200 V248"/>
+<text class="sub" x="380" y="350" text-anchor="middle">Arrows mean “uses”. Main also imports shared contracts.</text>
+<text class="sub" x="380" y="376" text-anchor="middle">Pydantic AI powers the agents; this is a simplified dependency map.</text>
+</svg>

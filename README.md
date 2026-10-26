@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="docs/brand/logo.svg" alt="BuildRelay Forward B logo" width="96" height="96">
+
 # BuildRelay
 
 ### An AI development team that plans, builds, and checks your code.
@@ -192,6 +194,10 @@ When a validation command fails, Meti receives its output and can issue repair c
 If the model returns a final response while a failed phase still has attempts remaining, the application sends the failure logs back into the same conversation. If that recovery round returns without another validation attempt, the run ends as failed rather than repeatedly asking without progress. Model-run errors and retry exhaustion also produce a failed review note.
 
 The review note records each phase's attempt number, command, exit code, captured output, and final resolution: passed, passed on retry, retry limit exhausted, stopped early, or not validated. Docker wait/execution errors preserve available container logs; image acquisition errors return failure feedback. This is bounded recovery within a run; `--resume` reuses saved progress and starts a new run budget. Neither mechanism guarantees that an autonomous repair will succeed.
+
+## Brand assets
+
+The selected logo is **Forward B**, an orange BuildRelay monogram. Use [the canonical SVG](docs/brand/logo.svg) for the README, website, and icon applications. See [brand usage](docs/brand/README.md) for sizing and color guidance.
 
 ## Component connections
 

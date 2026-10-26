@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+<title id="title">BuildRelay — Relay</title>
+<desc id="desc">Connected chevrons suggest handoffs and progress.</desc>
+<polygon fill="#FFA064" points="18,28 34,28 66,64 34,100 18,100 50,64"/>
+<polygon fill="#FFD3B3" points="56,28 72,28 104,64 72,100 56,100 88,64"/>
+</svg>

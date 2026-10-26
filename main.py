@@ -144,7 +144,7 @@ async def run_task(
 
 
 async def main() -> None:
-    parser = argparse.ArgumentParser(description='Run or resume the multi-agent engineering workflow')
+    parser = argparse.ArgumentParser(description='BuildRelay: plan, build, check, and resume AI development tasks')
     parser.add_argument('prompt', nargs='?', help='Task description or prompt')
     parser.add_argument('--project', type=validate_project_id, help='Parent project ID')
     parser.add_argument('--resume', type=validate_task_id, metavar='TASK_ID', help='Resume a saved local task')

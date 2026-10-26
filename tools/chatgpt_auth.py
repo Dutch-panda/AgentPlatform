@@ -85,7 +85,7 @@ async def get_model(model_name: str | None = None) -> Model:
     saved = await source.load() if source.path.exists() else None
     if saved is None or not saved.plan_usage_granted:
         flow = OpenAIChatGPTOAuthFlow(
-            app_name="AP-V2",
+            app_name="BuildRelay",
             client_id=saved.client_id if saved else None,
             id_token_hint=saved.id_token if saved else None,
         )

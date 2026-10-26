@@ -1,10 +1,10 @@
 <div align="center">
 
-# Agent Platform
+# BuildRelay
 
-### One prompt. Four agent roles. A connected knowledge trail.
+### An AI development team that plans, builds, and checks your code.
 
-Turn engineering requests into structured briefs, research, phased specifications, and validated implementations.
+Describe your development task. BuildRelay coordinates research, design, implementation, and validation, with saved progress you can resume.
 
 ![Version](https://img.shields.io/badge/version-0.1.0-6366f1?style=flat-square)
 ![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?style=flat-square&logo=python&logoColor=white)
@@ -18,7 +18,7 @@ Turn engineering requests into structured briefs, research, phased specification
 
 ---
 
-Agent Platform is a Python CLI that coordinates an engineering team built with Pydantic AI. Natasha selects the entry point for each request; Odin researches, Taghi designs, and Meti implements through Docker commands. Each stage saves Markdown artifacts to a local vault, with Graphify providing graph lookup when extraction is available.
+BuildRelay is a Python CLI that coordinates an engineering team built with Pydantic AI. Natasha selects the entry point for each request; Odin researches, Taghi designs, and Meti implements through Docker commands. Each stage saves Markdown artifacts to a local vault, with Graphify providing graph lookup when extraction is available.
 
 ## How the workflow runs
 
@@ -143,7 +143,7 @@ python main.py "Design a SQLite-backed task tracker" --project task-tracker
 python main.py "Build a CSV import utility for a task tracker" --project task-tracker
 ```
 
-Agent Platform creates `vault/projects/task-tracker.md` if needed and preserves existing project-note content. Produced briefs, reports, specifications, and implementation reviews include a visible project link and frontmatter:
+BuildRelay creates `vault/projects/task-tracker.md` if needed and preserves existing project-note content. Produced briefs, reports, specifications, and implementation reviews include a visible project link and frontmatter:
 
 ```yaml
 project: "[[projects/task-tracker]]"
@@ -162,7 +162,7 @@ Saved notes → Graphify (when available) → Agent queries
 
 Open **`vault/` as an Obsidian vault** to browse the notes and project wikilinks. Those links work independently of Graphify.
 
-Graph updates are attempted after stage artifacts are saved. Graphify Markdown extraction requires its own supported backend; if extraction fails, Agent Platform logs a warning and continues with saved notes. Without a usable graph, knowledge queries may return no context.
+Graph updates are attempted after stage artifacts are saved. Graphify Markdown extraction requires its own supported backend; if extraction fails, BuildRelay logs a warning and continues with saved notes. Without a usable graph, knowledge queries may return no context.
 
 ### Research source references
 
@@ -249,7 +249,7 @@ The review note records each phase's attempt number, command, exit code, capture
 
 ## Development and documentation
 
-The installed distribution is named `v2-agent-system`; run the CLI from the checkout with `python main.py`. There is no installed console-script entry point. Runtime dependencies and Python requirements are declared in [pyproject.toml](pyproject.toml); dependency versions are lower bounds rather than a locked environment.
+The installed distribution is named `buildrelay`; run the CLI from the checkout with `python main.py`. There is no installed console-script entry point. Runtime dependencies and Python requirements are declared in [pyproject.toml](pyproject.toml); dependency versions are lower bounds rather than a locked environment.
 
 The agent classes can also be called directly with a `model_name` (model string or Pydantic AI model object) and a `vault_path`. `MetiImplementer` additionally accepts `workspace_path`. Programmatic Meti calls can supply `checkpoint`, `checkpoint_callback`, and a new `run_number` to persist and restore implementation progress; the CLI connects these to the ledger automatically. The CLI supplies one OAuth-backed model to every stage; these constructor options are not CLI flags.
 
@@ -275,7 +275,7 @@ Documentation has two roles:
 
 ## Current limitations
 
-Agent Platform is version **0.1.0**. These details matter when interpreting its output:
+BuildRelay is version **0.1.0**. These details matter when interpreting its output:
 
 - **Optional stage links:** specification and review frontmatter can link to skipped stages; a wikilink does not guarantee its target exists.
 - **Container isolation:** network access is enabled, the task directory is writable, and the runner does not configure CPU or memory limits.

@@ -9,6 +9,7 @@
   - `agents/review_renderer.py`: Pure Markdown code-review report rendering.
 - **Ledger & Persistence**: Stored locally in SQLite at `.state/tasks.db`. Checkpoints are validated with `ImplementationCheckpoint.validate_plan_consistency`.
 - **Workspaces**: Generated code lives in `workspace/<project_id>/` (or `workspace/<task_id>/`).
+- **Security & Vault Isolation**: Docker containers execute without host environment variables passed and only mount the task workspace. Vault notes and graph tools are registered and written strictly through `tools/vault_infra.py` safe writers.
 
 ## Testing & Verification
 - Run tests using `.venv/bin/pytest` or `.venv/bin/python scripts/validate.py`.

@@ -14,7 +14,7 @@ Describe your development task. BuildRelay coordinates research, design, impleme
 ![Docker](https://img.shields.io/badge/execution-Docker-2496ED?style=flat-square&logo=docker&logoColor=white)
 ![Obsidian](https://img.shields.io/badge/notes-Obsidian-7C3AED?style=flat-square&logo=obsidian&logoColor=white)
 
-[Website](https://dutch-panda.github.io/BuildRelay/) · [Tests](#testing) · [CI results](https://github.com/Dutch-panda/BuildRelay/actions/workflows/tests.yml) · [Quick start](#quick-start) · [Workflow](#how-the-workflow-runs) · [Resume a task](#resume-a-task) · [Project memory](#keep-related-tasks-connected) · [Components](#component-connections) · [Repository](#repository-map) · [Troubleshooting](#troubleshooting)
+[Website](https://dutch-panda.github.io/BuildRelay/) · [Tests](#testing) · [CI results](https://github.com/Dutch-panda/BuildRelay/actions/workflows/tests.yml) · [Quick start](#quick-start) · [Workflow](#how-the-workflow-runs) · [Resume a task](#resume-a-task) · [Project memory](#keep-related-tasks-connected) · [Components](#component-connections) · [Security](#security-and-isolation-boundaries) · [Repository](#repository-map) · [Troubleshooting](#troubleshooting)
 
 </div>
 
@@ -238,7 +238,7 @@ Arrows show which component uses another. Shared contracts define stage outputs,
 ## Troubleshooting
 
 - **Docker connection fails:** start Docker and confirm `docker info` succeeds in the same terminal. The CLI uses the Docker SDK's environment configuration.
-- **Authentication fails:** check the authorization callback completes and the credential file is readable. `CHATGPT_AUTH_FILE` selects the local credential file; `OPENAI_MODEL` selects the model. An API key alone does not replace this CLI's OAuth flow.
+- **Authentication fails:** verify that direct API keys (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, or `GEMINI_API_KEY`) are present in `.env` or system environment, or complete the ChatGPT OAuth flow in your browser on first run. If using OAuth, verify that the authorization callback finishes and the credentials file is readable (defaulting to `.env.chatgpt-auth.json` or configured via `CHATGPT_AUTH_FILE`).
 - **Graph extraction fails:** inspect the logged Graphify error. Extraction runs as `python -m graphify extract <vault>` using the CLI's Python interpreter, with `GRAPHIFY_OUT` pointing to `vault/.graphify`. Each extraction has a 300-second timeout. Saved Markdown remains available if extraction fails.
 - **Dependencies disappear between commands:** install them inside the mounted task directory. Each command starts a new container.
 - **Implementation reports failure:** inspect `vault/code-reviews/review-<task_id>.md` and terminal output. A phase is recorded only when its exact validation command exits successfully with the expected phase name.
@@ -248,6 +248,17 @@ Arrows show which component uses another. Shared contracts define stage outputs,
 - **Interrupted command outcome is unknown:** inspect the existing files, running containers, and external side effects before resuming. Commands may have partially completed and can run again.
 - **Invalid checkpoint:** preserve the original ledger and restore a consistent backup if available. Do not edit phase completion flags to force a resume; start a new task if the checkpoint cannot be recovered.
 - **A linked note is missing:** research and specification notes exist only when their stages run. New briefs use permanent task IDs; older artifacts may still contain unresolved temporary brief links.
+
+## Security and isolation boundaries
+
+BuildRelay protects host credentials and filesystem integrity through multiple layers of sandboxing:
+
+- **Credential & API Key Isolation:** Docker containers executed by Meti do **not** inherit host environment variables. Host API keys (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, etc.) are never passed to containers. Running `env`, `printenv`, or inspecting process environments inside the container reveals only standard container defaults.
+- **Workspace Containment:** Docker containers mount strictly the target task or project workspace (`workspace/<task_id>/` or `workspace/<project_id>/`) to `/app/workspace/<task_id>/`. The host project root, `.env`, `.git/`, and `.state/` directories are **never mounted**. Path traversal via task IDs is blocked by strict regex validation (`^[A-Za-z0-9][A-Za-z0-9_-]*$`) and filesystem root containment checks.
+- **Agent Tool Boundaries:** Host-level agents (Natasha, Odin, Taghi) operate with read-only Obsidian vault graph queries and safe Markdown note writers. They have no terminal, shell, or arbitrary filesystem access.
+- **Safe Vault Artifact Writing:** Stage artifacts are written using `safe_write_markdown`, which rejects directory traversal (`..`) and strictly enforces file confinement within designated vault directories (`tasks/`, `research/`, `specs/`, `code-reviews/`).
+- **No Host Execution:** The host Python application never runs `eval()`, `exec()`, or `subprocess` on generated user code from `workspace/`. All compilation, execution, and tests occur strictly inside Docker containers.
+- **Credential Storage Security:** `.env` and `.env.*` (including `.env.chatgpt-auth.json`) are ignored by Git. OAuth credential tokens are written atomically using restrictive `0o600` permissions (readable and writable only by the owner).
 
 ## Development and documentation
 
@@ -264,7 +275,7 @@ python -m pip install -e '.[test]'
 python scripts/validate.py
 ```
 
-The script runs the platform tests in `tests/`; extra pytest arguments can be appended, for example `python scripts/validate.py -k validation`. Test discovery excludes generated workspaces. The suite uses Pydantic AI `TestModel` for structured outputs and `FunctionModel` for scripted tool calls, blocks real model requests, replaces Docker and graph extraction, and writes artifacts in temporary directories. It covers routing contracts, project links, graph retrieval, source resolution and report references, phase validation, bounded recovery, Docker failure feedback, ledger persistence, and resume behavior; it does not assess live model routing quality.
+The script runs the platform tests in `tests/` (100 passing unit tests); extra pytest arguments can be appended, for example `python scripts/validate.py -k validation`. Test discovery excludes generated workspaces. The suite uses Pydantic AI `TestModel` for structured outputs and `FunctionModel` for scripted tool calls, blocks real model requests, replaces Docker and graph extraction, and writes artifacts in temporary directories. It covers routing contracts, project links, graph retrieval, source resolution and report references, phase validation, bounded recovery, container isolation invariants, Docker failure feedback, ledger persistence, and resume behavior; it does not assess live model routing quality.
 
 The [Platform tests workflow](.github/workflows/tests.yml) runs the same validation command on pushes and pull requests using Ubuntu with Python 3.11 and 3.14. Open [CI results](https://github.com/Dutch-panda/BuildRelay/actions/workflows/tests.yml) to inspect runs. To start a manual run, select **Run workflow**, choose a branch, and confirm. Results and failure logs appear on the commit or pull request; no model credentials or Docker service are needed. Requiring passing checks before merging is a separate repository setting.
 

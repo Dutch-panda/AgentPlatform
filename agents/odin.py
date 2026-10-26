@@ -16,6 +16,7 @@ from tools.vault_infra import (
     register_provenance_graph_tools,
     update_vault_graph,
 )
+from tools.ui import print_agent
 
 
 @dataclass
@@ -55,7 +56,7 @@ class OdinResearcher:
         )
 
     async def conduct_research(self, task_id: str, objective: str, project_id: str | None = None) -> ResearchReport:
-        print(f"[Odin] Checking task brief and conducting research for: {task_id}")
+        print_agent("odin", f"Conducting vault research for task: {task_id}")
         
         if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", task_id):
             raise ValueError("Task ID must contain only letters, digits, underscores, or hyphens")
@@ -110,7 +111,7 @@ links: {links}
             markdown_content += "\nNo source notes could be resolved from the retrieved graph context.\n"
 
         note_filename.write_text(markdown_content, encoding="utf-8")
-        print(f"[Odin] Saved research report to: {note_filename}")
+        print_agent("odin", f"Saved research report to: {note_filename}")
 
         await update_vault_graph(self.graph_manager, note_filename)
         return report

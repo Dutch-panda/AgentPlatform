@@ -13,7 +13,8 @@ dependencies = [
     "pydantic-ai>=2.57.0",
     "docker>=7.0.0",
     "graphifyy>=0.7.14",
-    "python-dotenv>=1.0.0"
+    "python-dotenv>=1.0.0",
+    "rich>=13.0.0"
 ]
 
 [project.optional-dependencies]

@@ -24,6 +24,7 @@ from tools.docker_runner import DockerSandboxRunner
 from tools.graphify_tool import GraphifyVaultManager
 from tools.project_notes import prepare_project
 from tools.vault_infra import update_vault_graph
+from tools.ui import print_agent, print_tool_call
 
 
 class MetiImplementer:
@@ -71,7 +72,7 @@ class MetiImplementer:
             if rejection is not None:
                 return rejection
 
-            print(f"[Meti Sandbox Tool] Executing: {shell_command}")
+            print_tool_call("meti", "Docker", shell_command)
             ctx.deps.in_flight_command = shell_command
             ctx.deps.workspace_used = True
             ctx.deps.save()
@@ -145,7 +146,7 @@ class MetiImplementer:
             project_id=project_id,
         )
         state.save()
-        print(f"[Meti] Beginning phased implementation for task: {task_id}")
+        print_agent("meti", f"Beginning phased implementation for task: {task_id}")
 
         # Construct prompt providing the blueprint for Meti
         phases_text = "\n".join([f"- Phase: {p.phase_name}\n  Instructions: {p.instructions}\n  Validation: {p.validation_command}" for p in phases])
@@ -221,7 +222,7 @@ class MetiImplementer:
             project=project,
         )
         note_filename = write_review_note(self.code_reviews_dir, task_id, markdown_content)
-        print(f"[Meti] Saved code review note to: {note_filename}")
+        print_agent("meti", f"Saved code review note to: {note_filename}")
 
         await update_vault_graph(self.graph_manager, note_filename)
         return implementation_result

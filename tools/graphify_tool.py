@@ -39,20 +39,33 @@ class GraphifyVaultManager:
                 timeout=300,
             )
             if not self.graph_json_path.is_file():
-                print(f"[GraphifyTool Error] Graph output missing: {self.graph_json_path}")
+                if os.environ.get("BUILDRELAY_DEBUG"):
+                    print(f"[GraphifyTool Error] Graph output missing: {self.graph_json_path}")
                 return False
-            print(f"[GraphifyTool] Graph built successfully. Output: {self.output_dir}")
             return True
         except subprocess.TimeoutExpired:
-            print("[GraphifyTool Error] Graph build timed out after 300 seconds")
+            if os.environ.get("BUILDRELAY_DEBUG"):
+                print("[GraphifyTool Error] Graph build timed out after 300 seconds")
             return False
         except subprocess.CalledProcessError as e:
-            print(f"[GraphifyTool Error] Subprocess failed with code {e.returncode}")
-            print(f"Stdout: {e.stdout}")
-            print(f"Stderr: {e.stderr}")
+            if os.environ.get("BUILDRELAY_DEBUG"):
+                print(f"[GraphifyTool Error] Subprocess failed with code {e.returncode}")
+                print(f"Stdout: {e.stdout}")
+                print(f"Stderr: {e.stderr}")
+            else:
+                debug_log = self.output_dir.parent / ".state" / "graphify_debug.log"
+                try:
+                    debug_log.parent.mkdir(parents=True, exist_ok=True)
+                    debug_log.write_text(
+                        f"Return code: {e.returncode}\n--- stdout ---\n{e.stdout}\n--- stderr ---\n{e.stderr}",
+                        encoding="utf-8",
+                    )
+                except Exception:
+                    pass
             return False
         except FileNotFoundError:
-            print("[GraphifyTool Error] 'graphify' CLI command not found. Ensure 'graphifyy' is installed in your .venv.")
+            if os.environ.get("BUILDRELAY_DEBUG"):
+                print("[GraphifyTool Error] 'graphify' CLI command not found. Ensure 'graphifyy' is installed in your .venv.")
             return False
 
     def load_graph(self) -> Dict[str, Any]:
@@ -124,6 +137,9 @@ class GraphifyVaultManager:
                 # Stale or malformed graph paths must not prevent saving a report.
                 continue
         return sorted(sources)
+
+# Reference to unbound method for explicit testing when mocked in fixtures
+_original_build_graph = GraphifyVaultManager.build_graph
 
 # Quick standalone test execution block
 if __name__ == "__main__":

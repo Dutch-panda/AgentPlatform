@@ -12,6 +12,7 @@ from tools.vault_infra import (
     register_note_writer_tool,
     update_vault_graph,
 )
+from tools.ui import print_agent
 
 class TaghiArchitect:
     def __init__(self, vault_path: str = "./vault", model_name: str | Model = "openai-chat:gpt-4o"):
@@ -44,7 +45,7 @@ class TaghiArchitect:
         )
 
     async def create_specification(self, task_id: str, research_summary: str, project_id: str | None = None) -> TechnicalSpec:
-        print(f"[Taghi] Designing architecture and execution phases for task: {task_id}")
+        print_agent("taghi", f"Designing technical architecture and roadmap for task: {task_id}")
 
         if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", task_id):
             raise ValueError("Task ID must contain only letters, digits, underscores, or hyphens")
@@ -92,7 +93,7 @@ links: ["[[research-{task_id}]]", "[[{task_id}-brief]]"]
             markdown_content += f"- **Validation Command:** `{phase.validation_command}`\n\n"
 
         note_filename.write_text(markdown_content, encoding="utf-8")
-        print(f"[Taghi] Saved technical specification to: {note_filename}")
+        print_agent("taghi", f"Saved technical specification to: {note_filename}")
 
         await update_vault_graph(self.graph_manager, note_filename)
         return spec

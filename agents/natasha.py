@@ -14,6 +14,7 @@ from tools.vault_infra import (
     register_note_writer_tool,
     update_vault_graph,
 )
+from tools.ui import print_agent
 
 class NatashaRouter:
     def __init__(self, vault_path: str = "./vault", model_name: str | Model = "openai-chat:gpt-4o"):
@@ -44,7 +45,7 @@ class NatashaRouter:
         )
 
     async def coordinate_request(self, user_prompt: str, task_id: str, project_id: str | None = None) -> TaskBrief:
-        print(f"[Natasha] Routing prompt for task {task_id}: '{user_prompt}'")
+        print_agent("natasha", f"Analyzing and routing task: '{user_prompt}'")
         
         if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", task_id):
             raise ValueError("Task ID must contain only letters, digits, underscores, or hyphens")
@@ -79,7 +80,7 @@ links: []
             markdown_content += f"- {q}\n"
 
         note_filename.write_text(markdown_content, encoding="utf-8")
-        print(f"[Natasha] Created master task note at: {note_filename}")
+        print_agent("natasha", f"Created master task note at: {note_filename}")
 
         await update_vault_graph(self.graph_manager, note_filename)
         return task_brief

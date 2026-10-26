@@ -21,6 +21,14 @@ from agents.natasha import NatashaRouter
 from agents.odin import OdinResearcher
 from agents.taghi import TaghiArchitect
 from agents.meti import MetiImplementer
+from tools.ui import (
+    print_agent,
+    print_brief_summary,
+    print_completion,
+    print_phase_table,
+    print_spec_summary,
+    print_task_header,
+)
 
 load_dotenv()
 
@@ -87,8 +95,8 @@ async def run_task(
     if implementation_started and not (Path('workspace') / workspace_dir).is_dir():
         raise ValueError('The saved project workspace is missing; restore it before resuming implementation')
     if checkpoint.in_flight_command:
-        print('[Resume] Interrupted command outcome is unknown: ' + checkpoint.in_flight_command)
-        print('[Resume] Inspect its side effects; the unfinished phase may execute again.')
+        print_agent('resume', 'Interrupted command outcome is unknown: ' + checkpoint.in_flight_command)
+        print_agent('resume', 'Inspect its side effects; the unfinished phase may execute again.')
     model = await get_chatgpt_model(model_name=model_override)
     project = record.project_id
     task_id = record.task_id
@@ -103,6 +111,7 @@ async def run_task(
         record.brief = brief
         ledger.save(record)
     brief = TaskBrief.model_validate(record.brief)
+    print_brief_summary(brief.target_lead, brief.research_questions)
     objective = brief.objective
     if brief.research_questions:
         objective += '\n\nScope and questions:\n' + '\n'.join(f'- {item}' for item in brief.research_questions)
@@ -132,6 +141,8 @@ async def run_task(
         ledger.save(record)
 
     spec = TechnicalSpec.model_validate(record.specification)
+    print_spec_summary(spec.base_image, spec.phases)
+    print_phase_table(spec.phases, completed_phases=getattr(checkpoint, "validated_phases", []))
     record.status = 'IMPLEMENTING'
     ledger.save(record)
 
@@ -169,9 +180,9 @@ async def main() -> None:
             else:
                 record = TaskRecord(task_id=task_id, prompt=args.prompt.strip(), project_id=args.project)
                 ledger.create(record)
-            print(f'[Orchestrator] Task ID: {task_id}')
+            print_task_header(task_id, record.prompt, project_id=record.project_id, is_resume=bool(args.resume))
             if record.status == 'COMPLETED':
-                print('[Orchestrator] Task is already completed; no stages were run.')
+                print_agent('orchestrator', 'Task is already completed; no stages were run.')
                 return
             try:
                 result = await run_task(record, ledger, model_override=args.model, image_override=args.image)
@@ -184,14 +195,13 @@ async def main() -> None:
             record.status = 'COMPLETED' if result.status == 'success' else 'FAILED'
             record.error = None if result.status == 'success' else result.summary
             ledger.save(record)
-            print(f'[Orchestrator] {result.summary}')
+            print_completion(task_id, result.status == 'success', result.summary)
             if result.status != 'success':
-                print(f'[Orchestrator] Resume with: python main.py --resume {task_id}')
                 sys.exit(1)
-            print(f'[Orchestrator] Workflow {task_id} Completed Successfully!')
     except Exception as error:
-        print(f'[Orchestrator] {error}', file=sys.stderr)
-        print(f'[Orchestrator] To retry a saved task: python main.py --resume {task_id}', file=sys.stderr)
+        print_agent('orchestrator', f'[bold red]{error}[/bold red]')
+        print_agent('orchestrator', f'To retry a saved task: python main.py --resume {task_id}')
+        sys.exit(1)
         sys.exit(1)
 
 

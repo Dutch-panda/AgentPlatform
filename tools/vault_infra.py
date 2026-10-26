@@ -8,6 +8,7 @@ from typing import Any, Callable
 
 from pydantic_ai import Agent, RunContext
 from tools.graphify_tool import GraphifyVaultManager
+from tools.ui import print_tool_call
 
 
 def safe_write_markdown(
@@ -46,13 +47,13 @@ def register_graph_tools(
     @agent.tool_plain
     def query_vault_knowledge(search_term: str) -> list[dict]:
         """Search the Obsidian vault graph for existing nodes, tasks, or past specs matching a term."""
-        print(f"[{agent_name} Tool Called] Searching graph for: {search_term}")
+        print_tool_call(agent_name, "query_vault_knowledge", f"term='{search_term}'")
         return graph_manager.query_nodes(search_term)
 
     @agent.tool_plain
     def get_related_notes(node_id: str) -> list[dict]:
         """Get direct neighbor connections for a specific note ID in the vault graph."""
-        print(f"[{agent_name} Tool Called] Finding neighbors for node: {node_id}")
+        print_tool_call(agent_name, "get_related_notes", f"node='{node_id}'")
         return graph_manager.get_neighbors(node_id)
 
 
@@ -66,7 +67,7 @@ def register_provenance_graph_tools(
     @agent.tool
     def query_vault_knowledge(ctx: RunContext[Any], search_term: str) -> list[dict]:
         """Search the Obsidian vault graph for existing nodes, tasks, or past specs matching a term."""
-        print(f"[{agent_name} Tool Called] Searching graph for: {search_term}")
+        print_tool_call(agent_name, "query_vault_knowledge", f"term='{search_term}'")
         nodes = graph_manager.query_nodes(search_term)
         if hasattr(ctx.deps, "retrieved_nodes"):
             ctx.deps.retrieved_nodes.extend(nodes)
@@ -75,7 +76,7 @@ def register_provenance_graph_tools(
     @agent.tool
     def get_related_notes(ctx: RunContext[Any], node_id: str) -> list[dict]:
         """Get direct neighbor connections for a specific note ID in the vault graph."""
-        print(f"[{agent_name} Tool Called] Finding neighbors for node: {node_id}")
+        print_tool_call(agent_name, "get_related_notes", f"node='{node_id}'")
         nodes = graph_manager.get_neighbors(node_id)
         if hasattr(ctx.deps, "retrieved_nodes"):
             ctx.deps.retrieved_nodes.extend(nodes)
@@ -100,7 +101,7 @@ def register_note_writer_tool(
             category=category,
             directory_name=directory_name,
         )
-        print(f"[{agent_name} Tool] Wrote note directly to vault: {saved_path}")
+        print_tool_call(agent_name, "write_note", f"saved {saved_path.name}")
         return f"Successfully saved note to {saved_path}"
 
     write_note.__name__ = tool_name

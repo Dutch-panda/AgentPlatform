@@ -225,6 +225,7 @@ Arrows show which component uses another. Shared contracts define stage outputs,
 │   ├── graphify_tool.py      Graph extraction, node search, and neighbors
 │   ├── project_notes.py      Project IDs, note creation, and shared links
 │   ├── task_ledger.py        SQLite checkpoints and per-task process locks
+│   ├── ui.py                  Terminal styling, agent color badges, panels, and phase tables
 │   └── vault_infra.py        Safe Markdown writing, graph tool wiring, and graph updates
 ├── .github/workflows/tests.yml  Automated platform tests
 ├── tests/                    Deterministic platform tests
@@ -275,7 +276,7 @@ python -m pip install -e '.[test]'
 python scripts/validate.py
 ```
 
-The script runs the platform tests in `tests/` (100 passing unit tests); extra pytest arguments can be appended, for example `python scripts/validate.py -k validation`. Test discovery excludes generated workspaces. The suite uses Pydantic AI `TestModel` for structured outputs and `FunctionModel` for scripted tool calls, blocks real model requests, replaces Docker and graph extraction, and writes artifacts in temporary directories. It covers routing contracts, project links, graph retrieval, source resolution and report references, phase validation, bounded recovery, container isolation invariants, Docker failure feedback, ledger persistence, and resume behavior; it does not assess live model routing quality.
+The script runs the platform tests in `tests/` (107 passing unit tests); extra pytest arguments can be appended, for example `python scripts/validate.py -k validation`. Test discovery excludes generated workspaces. The suite uses Pydantic AI `TestModel` for structured outputs and `FunctionModel` for scripted tool calls, blocks real model requests, replaces Docker and graph extraction, and writes artifacts in temporary directories. It covers routing contracts, project links, graph retrieval, source resolution and report references, phase validation, bounded recovery, container isolation invariants, Docker failure feedback, ledger persistence, and resume behavior; it does not assess live model routing quality.
 
 The [Platform tests workflow](.github/workflows/tests.yml) runs the same validation command on pushes and pull requests using Ubuntu with Python 3.11 and 3.14. Open [CI results](https://github.com/Dutch-panda/BuildRelay/actions/workflows/tests.yml) to inspect runs. To start a manual run, select **Run workflow**, choose a branch, and confirm. Results and failure logs appear on the commit or pull request; no model credentials or Docker service are needed. Requiring passing checks before merging is a separate repository setting.
 

@@ -88,3 +88,35 @@ def test_taghi_saves_dependencies_and_exact_validation(tmp_path):
 
     standalone = asyncio.run(taghi.create_specification("task-standalone", "Use Python", project_id=None))
     assert "workspace/task-standalone/" in standalone.architecture_overview
+
+
+def test_taghi_filters_unexecutable_blocked_phases(tmp_path):
+    p1 = ExecutionPhase(phase_name="1-cli", instructions="Build CLI", validation_command="python -m pytest")
+    p2 = ExecutionPhase(
+        phase_name="2-authorized-gate",
+        instructions="BLOCKED AND CONDITIONAL: do not run without live API token",
+        validation_command="RUN_LIVE=1 python live_check.py",
+    )
+    model = TestModel(
+        call_tools=[],
+        custom_output_args=dict(
+            task_id="model-id",
+            architecture_overview="Hybrid CLI with offline core.",
+            required_dependencies=["pytest"],
+            phases=[p1.model_dump(), p2.model_dump()],
+        ),
+    )
+    taghi = TaghiArchitect(vault_path=str(tmp_path / "vault"), model_name=model)
+    spec = asyncio.run(taghi.create_specification("task-filter", "Build tool", project_id=None))
+
+    # Automated phases must ONLY contain actionable offline phase
+    assert spec.phases == [p1]
+
+    # Markdown note must preserve the deferred gate in architecture overview and keep roadmap clean
+    note = (tmp_path / "vault/specs/spec-task-filter.md").read_text()
+    assert "### Phase: 1-cli" in note
+    assert "### Phase: 2-authorized-gate" not in note
+    assert "Deferred / Prerequisite Production Gates" in note
+    assert "2-authorized-gate" in note
+    assert "RUN_LIVE=1 python live_check.py" in note
+

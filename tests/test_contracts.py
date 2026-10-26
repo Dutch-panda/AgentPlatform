@@ -299,3 +299,65 @@ def test_implementation_result_dict_and_attr_access():
     assert result["executed_phases"] == ["1-db", "2-api"]
     assert result.get("non_existent", "fallback") == "fallback"
     assert "summary" in result
+
+
+def test_is_blocked_or_conditional_detection():
+    normal = ExecutionPhase(
+        phase_name="1-database",
+        instructions="Create SQLite tables and models",
+        validation_command="pytest tests/test_db.py",
+    )
+    assert normal.is_blocked_or_conditional() is False
+
+    blocked_prefix = ExecutionPhase(
+        phase_name="5-live-gate",
+        instructions="BLOCKED: do not run without live api credentials",
+        validation_command="python check.py",
+    )
+    assert blocked_prefix.is_blocked_or_conditional() is True
+
+    conditional_prefix = ExecutionPhase(
+        phase_name="5-deploy",
+        instructions="CONDITIONAL: only execute if token is set",
+        validation_command="python check.py",
+    )
+    assert conditional_prefix.is_blocked_or_conditional() is True
+
+    blocked_and_cond = ExecutionPhase(
+        phase_name="5-authorized-source-integration-gate",
+        instructions="BLOCKED AND CONDITIONAL: do not execute live requests without documented authorization",
+        validation_command="RUN_AUTHORIZED_INTEGRATION=1 python validate_authorized_source.py",
+    )
+    assert blocked_and_cond.is_blocked_or_conditional() is True
+
+    gate_name = ExecutionPhase(
+        phase_name="5-external-auth-gate",
+        instructions="Require external secret key to verify",
+        validation_command="python check_auth.py",
+    )
+    assert gate_name.is_blocked_or_conditional() is True
+
+
+def test_spec_sanitizes_unexecutable_phases():
+    p1 = ExecutionPhase(phase_name="1-db", instructions="Setup db", validation_command="pytest tests/db")
+    p2 = ExecutionPhase(phase_name="2-api", instructions="Setup api", validation_command="pytest tests/api")
+    p_blocked = ExecutionPhase(
+        phase_name="3-authorized-source-integration-gate",
+        instructions="BLOCKED AND CONDITIONAL: do not execute live requests without documented authorization",
+        validation_command="RUN_AUTHORIZED_INTEGRATION=1 python validate_authorized_source.py",
+    )
+
+    spec = TechnicalSpec(
+        task_id="task-airbnb",
+        architecture_overview="Build normalized pricing CLI.",
+        required_dependencies=["python"],
+        phases=[p1, p2, p_blocked],
+    )
+
+    executable = spec.sanitize_executable_phases()
+    assert executable == [p1, p2]
+    assert spec.phases == [p1, p2]
+    assert "Deferred / Prerequisite Production Gates" in spec.architecture_overview
+    assert "3-authorized-source-integration-gate" in spec.architecture_overview
+    assert "RUN_AUTHORIZED_INTEGRATION=1" in spec.architecture_overview
+

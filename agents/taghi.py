@@ -30,8 +30,14 @@ class TaghiArchitect:
                 "You are Taghi, Technical Design Lead. Verify that the task is designated for design/architecture. "
                 "Translate research reports into precise technical specifications and sequential execution phases for Meti. "
                 "Select a suitable Docker base_image for the required runtime (e.g. 'python:3.11-slim' for Python tasks, "
-                "'node:18-bullseye-slim' for Node/JS/TS, or an appropriate slim image)."
-            )
+                "'node:18-bullseye-slim' for Node/JS/TS, or an appropriate slim image).\n\n"
+                "CRITICAL EXECUTION CONSTRAINTS FOR METI SANDBOX:\n"
+                "- Meti executes and validates all phases autonomously inside an isolated Docker container without host credentials or live external API keys.\n"
+                "- Every phase in 'phases' MUST be fully executable and verifiable inside the container environment using offline test suites, fixtures, or mock adapters.\n"
+                "- If the task involves third-party services or private APIs where no credentials or endpoints are provided in the brief, specify modular mock implementations and offline test suites.\n"
+                "- NEVER emit speculative, conditional, or blocked phases (e.g., 'Phase 5: authorized-source-integration-gate') that require unprovided credentials, live network access, or manual approvals. "
+                "Document production prerequisites and future live integration gates exclusively in 'architecture_overview', NEVER as an ExecutionPhase."
+            ),
         )
         # --- BINDING TOOLS TO Taghi ---
         register_graph_tools(self.agent, self.graph_manager, "Taghi")
@@ -57,12 +63,16 @@ class TaghiArchitect:
             f"Include this instruction in the specification: {directory_instruction}\n"
             f"All sandbox commands start in /app/workspace/{workspace_dir}/. "
             "Keep source files, tests, documentation, validation scripts, and dependencies in this project directory. "
-            "Write validation commands relative to this directory or using its absolute container path."
+            "Write validation commands relative to this directory or using its absolute container path.\n"
+            "Execution Rule: All phases in 'phases' must be actionable and fully verifiable offline within the container. "
+            "Do NOT include conditional or blocked phases that depend on unprovided credentials or external authorization; "
+            "place any unverified external prerequisites or live deployment notes in architecture_overview."
         )
         result = await self.agent.run(prompt)
         spec = result.output
         spec.task_id = task_id
         spec.project_id = project_id
+        spec.sanitize_executable_phases()
         spec.architecture_overview = f"{directory_instruction}\n\n{spec.architecture_overview}"
 
         timestamp = datetime.now().strftime("%Y-%m-%d")

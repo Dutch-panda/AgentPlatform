@@ -78,6 +78,20 @@ class ExecutionPhase(BaseModel):
     def items(self):
         return self.__dict__.items()
 
+    def is_blocked_or_conditional(self) -> bool:
+        """Detect if this phase is explicitly declared as a blocked or conditional gate requiring external authorization."""
+        instr = self.instructions.strip().upper()
+        name = self.phase_name.strip().upper()
+        if instr.startswith("BLOCKED") or instr.startswith("CONDITIONAL:"):
+            return True
+        if "BLOCKED AND CONDITIONAL" in instr:
+            return True
+        if "DO NOT EXECUTE" in instr and ("WITHOUT" in instr or "AUTHORIZATION" in instr or "CREDENTIAL" in instr):
+            return True
+        if ("BLOCKED" in name or "GATE" in name) and ("AUTH" in name or "CONDITIONAL" in name or "EXTERNAL" in name):
+            return True
+        return False
+
 
 class TaskBrief(BaseModel):
     model_config = ConfigDict(extra="allow")
@@ -196,6 +210,32 @@ class TechnicalSpec(BaseModel):
 
     def items(self):
         return self.__dict__.items()
+
+    def sanitize_executable_phases(self) -> list[ExecutionPhase]:
+        """
+        Removes blocked or conditional phases from automated sandbox execution,
+        preserving their instructions and verification commands in architecture_overview.
+        """
+        executable: list[ExecutionPhase] = []
+        deferred: list[ExecutionPhase] = []
+        for phase in self.phases:
+            if phase.is_blocked_or_conditional():
+                deferred.append(phase)
+            else:
+                executable.append(phase)
+
+        if deferred:
+            deferred_section = "\n\n## Deferred / Prerequisite Production Gates (Omitted from Container Execution)\n"
+            for d in deferred:
+                deferred_section += (
+                    f"### {d.phase_name}\n"
+                    f"- **Notice:** Omitted from automated container sandbox execution because it requires unprovided external authorization or credentials.\n"
+                    f"- **Instructions:** {d.instructions}\n"
+                    f"- **Validation Command:** `{d.validation_command}`\n\n"
+                )
+            self.architecture_overview = f"{self.architecture_overview}{deferred_section}"
+            self.phases = executable
+        return self.phases
 
 
 class ImplementationResult(BaseModel):

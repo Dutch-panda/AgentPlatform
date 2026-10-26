@@ -270,6 +270,10 @@ class MetiImplementer:
         note_filename = self.code_reviews_dir / f"review-{task_id}.md"
 
         executed_phases_list = implementation_result.executed_phases
+        base_image_section = (
+            f"## Base Image\n`{state.base_image}`\n"
+            if isinstance(state.base_image, str) and state.base_image else ""
+        )
         markdown_content = f"""---
 id: "review-{task_id}"
 type: "code-review"
@@ -281,7 +285,7 @@ links: ["[[spec-{task_id}]]", "[[{task_id}-brief]]"]
 # Implementation Code Review: {task_id}
 
 {project.body}## Status: `{implementation_result.status.upper()}`
-{f'## Base Image\n`{state.base_image}`\n' if isinstance(state.base_image, str) and state.base_image else ''}
+{base_image_section}
 ## Summary
 {implementation_result.summary}
 

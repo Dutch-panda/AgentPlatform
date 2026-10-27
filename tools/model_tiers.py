@@ -191,9 +191,18 @@ def resolve_pipeline_models(
                 base_models[lead] = mdl
         return base_models
 
+    env_overrides = {
+        lead: os.environ.get(f"MODEL_{lead.upper()}")
+        for lead in ("natasha", "odin", "taghi", "meti")
+        if os.environ.get(f"MODEL_{lead.upper()}")
+    }
+    effective_overrides = {**env_overrides, **{k: v for k, v in overrides.items() if v is not None}}
+    has_overrides = bool(effective_overrides)
+
+    effective_tier = tier or (os.environ.get("DEFAULT_TIER") if global_model is None else None)
+
     # If no tier and no lead overrides were given, keep a uniform global model
-    has_overrides = any(v is not None for v in overrides.values())
-    if tier is None and not has_overrides:
+    if effective_tier is None and not has_overrides:
         uniform_model = global_model or os.environ.get("OPENAI_MODEL", "openai:gpt-4o")
         return {
             "natasha": uniform_model,
@@ -212,7 +221,7 @@ def resolve_pipeline_models(
     else:
         tier_table = DEFAULT_TIERS
 
-    selected_tier = (tier or "balanced").lower()
+    selected_tier = (effective_tier or "balanced").lower()
     if selected_tier not in tier_table:
         selected_tier = "balanced"
 
@@ -228,7 +237,7 @@ def resolve_pipeline_models(
         base_models = dict(tier_table[selected_tier])
 
     # Apply lead-specific overrides
-    for lead, mdl in overrides.items():
+    for lead, mdl in effective_overrides.items():
         if mdl is not None:
             base_models[lead] = mdl
 

@@ -1,3 +1,4 @@
+import os
 import sys
 import argparse
 import asyncio
@@ -314,6 +315,7 @@ async def run_task(
 async def main() -> None:
     parser = argparse.ArgumentParser(description='BuildRelay: plan, build, check, and resume AI development tasks')
     parser.add_argument('prompt', nargs='?', help='Task description or prompt')
+    parser.add_argument('--config', action='store_true', help='Launch interactive onboarding & configuration wizard')
     parser.add_argument('--project', type=validate_project_id, help='Parent project ID')
     parser.add_argument('--resume', type=validate_task_id, metavar='TASK_ID', help='Resume a saved local task')
     parser.add_argument('--model', help='Model identifier (e.g. openai:gpt-4o, anthropic:claude-3-5-sonnet-latest)')
@@ -326,8 +328,36 @@ async def main() -> None:
     parser.add_argument('-y', '--yes', '--auto', dest='auto', action='store_true', help='Headless mode; accept defaults without interactive prompts')
     parser.add_argument('--step', action='store_true', help='Interactive step gates between each agent lead')
     args = parser.parse_args()
+
+    # Direct config command: python main.py config or python main.py --config
+    if getattr(args, "config", False) or (args.prompt is not None and args.prompt.strip().lower() == "config"):
+        from tools.onboarding import run_onboarding_wizard
+        run_onboarding_wizard(is_reconfig=True)
+        return
+
     if args.resume and (args.prompt is not None or args.project is not None):
         parser.error('--resume cannot be combined with a prompt or --project; saved values are reused')
+
+    from tools.onboarding import check_credentials_configured, run_onboarding_wizard
+
+    is_testing = (args.model == "test") or os.environ.get("BUILDRELAY_TESTING") == "1"
+    if not check_credentials_configured() and not is_testing:
+        if not args.resume and (args.prompt is None or not args.prompt.strip()):
+            if not args.auto:
+                print_agent('orchestrator', '[bold yellow]No AI credentials detected.[/bold yellow] Launching interactive setup wizard...')
+                run_onboarding_wizard()
+                return
+            parser.error('Provide a non-empty prompt or --resume TASK_ID')
+        elif args.auto:
+            print_agent('orchestrator', '[bold red]No AI credentials detected. Run `python main.py config` to configure credentials.[/bold red]')
+            sys.exit(1)
+        else:
+            print_agent('orchestrator', '[bold yellow]No AI credentials detected.[/bold yellow] Launching setup wizard first...')
+            configured = run_onboarding_wizard()
+            if not configured:
+                print_agent('orchestrator', '[bold red]Setup cancelled. Configure credentials before running tasks.[/bold red]')
+                sys.exit(1)
+
     if not args.resume and (args.prompt is None or not args.prompt.strip()):
         parser.error('Provide a non-empty prompt or --resume TASK_ID')
     lead_overrides = {
@@ -383,6 +413,11 @@ async def main() -> None:
         print_agent('orchestrator', f'[bold red]{error}[/bold red]')
         print_agent('orchestrator', f'To retry a saved task: python main.py --resume {task_id}')
         sys.exit(1)
+
+
+def cli_entrypoint() -> None:
+    """Console script entrypoint for `buildrelay` command."""
+    asyncio.run(main())
 
 
 if __name__ == '__main__':

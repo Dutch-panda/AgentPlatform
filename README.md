@@ -57,34 +57,79 @@ docker info
 
 On Windows, activate the environment with `.venv\Scripts\Activate.ps1` in PowerShell.
 
-### 2. Configure the model (optional)
+### 2. Configure credentials & providers
 
-The CLI loads `.env` automatically. You can authenticate either via direct provider API keys or through ChatGPT OAuth:
+BuildRelay provides an interactive setup wizard to configure your preferred LLM provider, models, and execution tiers in seconds.
 
-**Option A: Standard API Keys**
-Set one of the standard provider keys in `.env` or your environment:
+#### Interactive Setup Wizard (Recommended)
+
+Run the configuration wizard directly at any time:
+
+```bash
+python main.py config
+# Or using the console script:
+buildrelay config
+# Or via CLI flag:
+python main.py --config
+```
+
+If you launch BuildRelay on a fresh machine without credentials, the CLI automatically detects the zero-config state and prompts:
+```
+⚡ BuildRelay — No AI credentials detected. Launching interactive setup wizard...
+```
+
+The wizard guides you through:
+1. **Provider Selection:**
+   - **ChatGPT Web Auth (Codex / Browser Subscription):** Connects to your ChatGPT Plus/Team subscription with zero API key charges. Supports Codex models (`gpt-6.1-sol`, `gpt-6.1`, `gpt-6`, `gpt-5.5`).
+   - **OpenAI API:** Direct API key for GPT-4o, GPT-4o-mini, o3-mini, o1.
+   - **Anthropic Claude:** Direct API key for Claude 3.7 Sonnet, Claude 3.5 Haiku.
+   - **Google Gemini:** Direct API key for Gemini 2.0 Flash, Gemini 2.5 Pro.
+   - **Local LLM (Ollama / LocalAI):** Free, local offline models (e.g. `llama3.3`, `qwen2.5-coder` at `http://localhost:11434/v1`).
+   - **Custom / OpenRouter Gateway:** OpenRouter or custom OpenAI-compatible proxies.
+2. **Masked Input & Validation:**
+   - Inputs are masked for security (`password=True`).
+   - A non-blocking reachability ping checks syntax and endpoint connectivity before saving, gracefully handling offline or sandboxed setups.
+3. **Execution Tier Preset:**
+   - Sets your default tier: `balanced` (default), `fast`, or `powerful`.
+4. **Lead-Specific Model Customization (Optional):**
+   - Customize models for individual leads: Natasha (Coordinator), Odin (Researcher), Taghi (Architect), Meti (Implementer).
+5. **Safe Atomic Persistence:**
+   - Saved directly to `.env` preserving existing comments and settings.
+   - Enforces strict `0600` file permissions (owner read/write only).
+
+#### Manual Configuration via `.env` (Alternative)
+
+If you prefer editing `.env` directly:
+
+**Option A: ChatGPT Web Auth (Codex Subscription — No API Key Required)**
+```dotenv
+OPENAI_MODEL=gpt-6.1-sol
+CHATGPT_AUTH_FILE=.env.chatgpt-auth.json
+DEFAULT_TIER=balanced
+```
+
+**Option B: Standard Direct API Keys**
 ```dotenv
 OPENAI_API_KEY=sk-...
-# Optional: OPENAI_MODEL=gpt-4o
+OPENAI_MODEL=gpt-4o
+DEFAULT_TIER=balanced
 
 # Or Anthropic:
 # ANTHROPIC_API_KEY=sk-ant-...
-# ANTHROPIC_MODEL=claude-3-5-sonnet-latest
+# ANTHROPIC_MODEL=claude-3-7-sonnet
 
 # Or Gemini:
 # GEMINI_API_KEY=AIza...
 # GEMINI_MODEL=gemini-2.0-flash
-```
-You can also override the model at runtime using the `--model` CLI flag (e.g., `--model anthropic:claude-3-5-sonnet-latest`).
 
-**Option B: ChatGPT OAuth**
-If no direct API key is set, the CLI uses ChatGPT OAuth through Pydantic AI:
-```dotenv
-OPENAI_MODEL=gpt-6.1-sol
-CHATGPT_AUTH_FILE=.env.chatgpt-auth.json
+# Optional per-lead overrides:
+# MODEL_NATASHA=google:gemini-2.0-flash
+# MODEL_ODIN=anthropic:claude-3-5-haiku
+# MODEL_TAGHI=openai:gpt-6
+# MODEL_METI=openai:gpt-6.1-sol
 ```
 
-Relative credential paths resolve from the repository root; `~` is expanded. On the first run, open the printed authorization URL and complete sign-in. Credentials are saved locally for reuse.
+You can also override models at runtime using `--model` (e.g., `--model anthropic:claude-3-7-sonnet`) or per-lead flags (`--model-taghi`, `--model-meti`).
 
 ### 3. Give the team a task
 
@@ -322,11 +367,11 @@ BuildRelay protects host credentials and filesystem integrity through multiple l
 - **Agent Tool Boundaries:** Host-level agents (Natasha, Odin, Taghi) operate with read-only Obsidian vault graph queries and safe Markdown note writers. They have no terminal, shell, or arbitrary filesystem access.
 - **Safe Vault Artifact Writing:** Stage artifacts are written using `safe_write_markdown`, which rejects directory traversal (`..`) and strictly enforces file confinement within designated vault directories (`tasks/`, `research/`, `specs/`, `code-reviews/`).
 - **No Host Execution:** The host Python application never runs `eval()`, `exec()`, or `subprocess` on generated user code from `workspace/`. All compilation, execution, and tests occur strictly inside Docker containers.
-- **Credential Storage Security:** `.env` and `.env.*` (including `.env.chatgpt-auth.json`) are ignored by Git. OAuth credential tokens are written atomically using restrictive `0o600` permissions (readable and writable only by the owner).
+- **Credential Storage Security:** `.env` and `.env.*` (including `.env.chatgpt-auth.json`) are ignored by Git. The interactive onboarding wizard (`tools/onboarding.py`) and OAuth credential flows enforce atomic file writes with strict `0o600` permissions (readable and writable only by the owner). Host credentials are never mounted into containers or stored in global locations.
 
 ## Development and documentation
 
-The installed distribution is named `buildrelay`; run the CLI from the checkout with `python main.py`. There is no installed console-script entry point. Runtime dependencies and Python requirements are declared in [pyproject.toml](pyproject.toml); dependency versions are lower bounds rather than a locked environment.
+The installed distribution provides the console script entry point `buildrelay` (e.g. `buildrelay "prompt"` or `buildrelay config`), or you can run directly from the checkout with `python main.py`. Runtime dependencies and Python requirements are declared in [pyproject.toml](pyproject.toml); dependency versions are lower bounds rather than a locked environment.
 
 The agent classes can also be called directly with a `model_name` (model string or Pydantic AI model object) and a `vault_path`. Agents support explicit dependency injection: `graph_manager`, custom artifact storage directories (`tasks_dir`, `research_dir`, `specs_dir`, `code_reviews_dir`), and `MetiImplementer` additionally accepts custom `sandbox` runners (e.g. `DockerSandboxRunner` or mock test runners). Constructors defer Docker connections and directory creation until operations actually require them. Programmatic Meti calls can supply `checkpoint`, `checkpoint_callback`, and a new `run_number` to persist and restore implementation progress; the CLI connects these to the ledger automatically. The CLI supplies one model to every stage; these constructor options are not CLI flags.
 
@@ -339,7 +384,7 @@ python -m pip install -e '.[test]'
 python scripts/validate.py
 ```
 
-The script runs the platform tests in `tests/` (155 passing unit tests); extra pytest arguments can be appended, for example `python scripts/validate.py -k validation`. Test discovery excludes generated workspaces. The suite uses Pydantic AI `TestModel` for structured outputs and `FunctionModel` for scripted tool calls, blocks real model requests, replaces Docker and graph extraction, and writes artifacts in temporary directories. It covers routing contracts, project links, explicit dependency injection, graph retrieval, source resolution and report references, phase validation, bounded recovery, container isolation invariants, Docker failure feedback, ledger persistence, and resume behavior; it does not assess live model routing quality.
+The script runs the platform tests in `tests/` (172 passing unit tests); extra pytest arguments can be appended, for example `python scripts/validate.py -k validation`. Test discovery excludes generated workspaces. The suite uses Pydantic AI `TestModel` for structured outputs and `FunctionModel` for scripted tool calls, blocks real model requests, replaces Docker and graph extraction, and writes artifacts in temporary directories. It covers routing contracts, project links, explicit dependency injection, graph retrieval, source resolution and report references, phase validation, bounded recovery, container isolation invariants, Docker failure feedback, ledger persistence, and resume behavior; it does not assess live model routing quality.
 
 The [Platform tests workflow](.github/workflows/tests.yml) runs the same validation command on pushes and pull requests using Ubuntu with Python 3.11 and 3.14. Open [CI results](https://github.com/Dutch-panda/BuildRelay/actions/workflows/tests.yml) to inspect runs. To start a manual run, select **Run workflow**, choose a branch, and confirm. Results and failure logs appear on the commit or pull request; no model credentials or Docker service are needed. Requiring passing checks before merging is a separate repository setting.
 

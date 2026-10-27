@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 import asyncio
 import re
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable
 
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.exceptions import AgentRunError

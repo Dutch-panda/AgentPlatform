@@ -22,6 +22,8 @@ from tools.ui import print_agent
 @dataclass
 class ResearchContext:
     retrieved_nodes: list[dict] = field(default_factory=list)
+    web_sources: list[dict[str, str]] = field(default_factory=list)
+    search_calls_count: int = 0
     
 
 class OdinResearcher:
@@ -44,10 +46,12 @@ class OdinResearcher:
             deps_type=ResearchContext,
             model_settings={"cache": True},
             system_prompt=(
-                "You are Odin, the Research Lead. You have access to vault graph tools. "
-                "Use them to query related concepts and their relationships before writing your final research report. "
-                "Graph results are historical context, not independently verified facts or full note contents. "
-                "The application records resolved source notes automatically; do not invent source paths."
+                "You are Odin, the Research Lead. You have access to vault graph tools and web documentation tools.\n"
+                "1. Use vault graph tools to query related historical context from the project notes.\n"
+                "2. If the user request involves third-party packages, new frameworks, or modern API signatures, "
+                "   use 'search_technical_documentation' or 'verify_package_ecosystem' to research current libraries.\n"
+                "3. Keep search queries specific and focused on technical requirements (e.g. 'fastapi pydantic v2 migration').\n"
+                "4. Graph and web results are automatically cited by the platform; do not invent source links."
             )
         )
 
@@ -61,6 +65,37 @@ class OdinResearcher:
             directory_name="research",
             agent_name="Odin",
         )
+
+        @self.agent.tool
+        def search_technical_documentation(ctx: RunContext[ResearchContext], query: str) -> str:
+            """Search the web for technical documentation, library signatures, or framework guides."""
+            from tools.ui import print_tool_call
+            print_tool_call("Odin", "search_technical_documentation", f"query='{query}'")
+            if ctx.deps.search_calls_count >= 3:
+                return "Search budget reached (maximum 3 web searches per task). Synthesize findings from retrieved information."
+            ctx.deps.search_calls_count += 1
+
+            from tools.web_search import search_web
+            results = search_web(query, max_results=3)
+            if not results:
+                return f"No external documentation found for '{query}' (offline or empty results)."
+
+            lines = []
+            for r in results:
+                ctx.deps.web_sources.append({"title": r.title, "url": r.url, "snippet": r.snippet})
+                lines.append(f"- **[{r.title}]({r.url})**: {r.snippet}")
+            return "\n".join(lines)
+
+        @self.agent.tool
+        def verify_package_ecosystem(ctx: RunContext[ResearchContext], package_name: str, ecosystem: str = "pypi") -> str:
+            """Verify whether a package exists in the official PyPI or npm registry to prevent hallucinated dependencies."""
+            from tools.ui import print_tool_call
+            print_tool_call("Odin", "verify_package_ecosystem", f"pkg='{package_name}' ({ecosystem})")
+            from tools.web_search import verify_package
+            info = verify_package(package_name, ecosystem=ecosystem)
+            if info.get("exists"):
+                return f"Package '{info.get('name')}' is verified on {ecosystem}. Latest version: {info.get('version')}. Summary: {info.get('summary')}"
+            return f"Package '{package_name}' was NOT found on {ecosystem}: {info.get('error')}"
 
     async def conduct_research(self, task_id: str, objective: str, project_id: str | None = None) -> ResearchReport:
         print_agent("odin", f"Conducting vault research for task: {task_id}")
@@ -83,6 +118,7 @@ class OdinResearcher:
 
         report.token_usage = extract_usage(result, model_name=str(self.model_name))
         report.vault_sources = self.graph_manager.resolve_note_sources(context.retrieved_nodes)
+        report.web_sources = getattr(context, "web_sources", [])
 
         timestamp = datetime.now().strftime("%Y-%m-%d")
         note_filename = self.research_dir / f"research-{task_id}.md"
@@ -122,6 +158,13 @@ links: {links}
                 markdown_content += f"- [{label}]({quote(relative, safe='/')})\n"
         else:
             markdown_content += "\nNo source notes could be resolved from the retrieved graph context.\n"
+
+        markdown_content += "\n## External web documentation & sources\n"
+        if report.web_sources:
+            for src in report.web_sources:
+                markdown_content += f"- [{src['title']}]({src['url']}): {src.get('snippet', '')}\n"
+        else:
+            markdown_content += "\nNo external web documentation was queried for this task.\n"
 
         note_filename.write_text(markdown_content, encoding="utf-8")
         print_agent("odin", f"Saved research report to: {note_filename}")

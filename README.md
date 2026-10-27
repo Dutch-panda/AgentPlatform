@@ -26,8 +26,8 @@ BuildRelay is a Python CLI that coordinates an engineering team built with Pydan
 
 <img src="docs/diagrams/workflow.svg" alt="Natasha routes requests through research, design, or direct implementation, ending with Meti and validation." width="760">
 
-- **Natasha — coordinator:** produces a typed task brief, a 5-sentence intent alignment brief, and chooses the next lead. Prompts with a low-friction clarification wizard for ambiguous requirements and supports mid-way intent pivots. Can query existing vault nodes and connections.
-- **Odin — researcher:** searches vault graph metadata and related nodes to produce findings and a recommended stack. Research notes automatically list resolved source notes. The current agent has vault tools; no dedicated web-search tool is registered.
+- **Natasha — coordinator:** produces a typed task brief, a 5-sentence intent alignment brief, and chooses the next lead. Prompts with a low-friction clarification wizard for ambiguous requirements, supports mid-way intent pivots, queries existing vault connections, and can look up official library names online.
+- **Odin — researcher:** queries vault graph metadata and external web documentation / package registries (PyPI, npm) to produce technical findings and recommended stacks. Research notes cite resolved vault notes and external web sources. Enforces strict SSRF guardrails (blocking private/internal IP ranges) and per-task search call budgets.
 - **Taghi — architect:** produces an architecture overview, dependencies, and ordered execution phases with explicit validation commands. Phases are constrained to actionable sandbox validation; conditional gates or unprovided external credentials are documented in architecture overview notes rather than active execution phases.
 - **Meti — implementer:** writes code through Docker commands with live progress spinners and validates phases in order. Generates a workspace `README.md` with run/test instructions, logs execution details to `.state/task.log`, and renders a file tree and `How to Run & Test` banner. A reported success is downgraded to failure if any phase remains unvalidated.
 
@@ -209,6 +209,17 @@ To balance execution speed, reasoning depth, and cost efficiency, BuildRelay pro
   - **Semantic Graph Pruning:** `prune_graph_context` scores and ranks vault nodes by keyword overlap, passing only the top 3–5 relevant snippets to Odin rather than raw graph dumps.
   - **Docker Log Slicing:** `prune_docker_log` automatically detects failure tracebacks and assertion errors in long build logs, slicing around the error signature to prevent context window dilution during retry loops.
 
+## Web and documentation search with guardrails
+
+Odin and Natasha have access to safe, token-efficient web search and package verification tools:
+
+- **Zero-Config Web Search:** Uses DuckDuckGo HTML search out-of-the-box, with optional `TAVILY_API_KEY` support.
+- **SSRF & Network Guardrails:** Blocks non-HTTP(S) schemes, localhost, private IP subnets (`10.0.0.0/8`, `192.168.0.0/16`, `172.16.0.0/12`), loopbacks, and cloud metadata services (`169.254.169.254`). Read-only GET requests only; zero arbitrary POSTs or form submissions.
+- **Noise-Cutting HTML Distillation:** Strips boilerplate, scripts, styles, navigation bars, cookie banners, and footers, extracting clean Markdown and code snippets with strict token caps (max ~750 tokens per page).
+- **Package Registry Verification:** Verifies official package existence and latest releases on PyPI (`https://pypi.org/pypi/<pkg>/json`) and npm before recommending them, preventing hallucinated package attacks (typosquatting).
+- **Search Call Budget:** Restricts Odin to a maximum budget of **3 web searches per task** to avoid unbounded browsing loops. All cited URLs are recorded in the research report under `vault/research/`.
+- **Local Disk Caching:** Query results are cached under `.state/search_cache/` so identical library queries across runs consume zero extra tokens.
+
 ## Dynamic progress and project delivery
 
 - **Live Progress Spinners:** Active Docker operations and LLM generation phases display animated Rich status spinners (`rich.status.Status`) instead of terminal dumps.
@@ -384,7 +395,7 @@ python -m pip install -e '.[test]'
 python scripts/validate.py
 ```
 
-The script runs the platform tests in `tests/` (173 passing unit tests); extra pytest arguments can be appended, for example `python scripts/validate.py -k validation`. Test discovery excludes generated workspaces. The suite uses Pydantic AI `TestModel` for structured outputs and `FunctionModel` for scripted tool calls, blocks real model requests, replaces Docker and graph extraction, and writes artifacts in temporary directories. It covers routing contracts, project links, explicit dependency injection, graph retrieval, source resolution and report references, phase validation, bounded recovery, container isolation invariants, Docker failure feedback, ledger persistence, and resume behavior; it does not assess live model routing quality.
+The script runs the platform tests in `tests/` (188 passing unit tests); extra pytest arguments can be appended, for example `python scripts/validate.py -k validation`. Test discovery excludes generated workspaces. The suite uses Pydantic AI `TestModel` for structured outputs and `FunctionModel` for scripted tool calls, blocks real model requests, replaces Docker and graph extraction, and writes artifacts in temporary directories. It covers routing contracts, project links, explicit dependency injection, graph retrieval, source resolution and report references, phase validation, bounded recovery, container isolation invariants, Docker failure feedback, ledger persistence, and resume behavior; it does not assess live model routing quality.
 
 The [Platform tests workflow](.github/workflows/tests.yml) runs the same validation command on pushes and pull requests using Ubuntu with Python 3.11 and 3.14. Open [CI results](https://github.com/Dutch-panda/BuildRelay/actions/workflows/tests.yml) to inspect runs. To start a manual run, select **Run workflow**, choose a branch, and confirm. Results and failure logs appear on the commit or pull request; no model credentials or Docker service are needed. Requiring passing checks before merging is a separate repository setting.
 

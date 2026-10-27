@@ -184,6 +184,7 @@ class ResearchReport(BaseModel):
     key_findings: list[str] = Field(description="Bullet points of technical insights or architectural approaches")
     recommended_stack: list[str] = Field(description="Recommended technologies or packages to use")
     vault_sources: list[str] = Field(default_factory=list, description="Vault-relative note paths; populated from retrieved graph results by the application")
+    web_sources: list[dict[str, str]] = Field(default_factory=list, description="External web citations: title, url, snippet")
 
     def __getitem__(self, item: str) -> Any:
         try:

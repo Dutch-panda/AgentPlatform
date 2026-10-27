@@ -62,6 +62,17 @@ class NatashaRouter:
             agent_name="Natasha",
         )
 
+        @self.agent.tool_plain
+        def lookup_technology(query: str) -> str:
+            """Look up official library names or technology options when clarifying task briefs."""
+            from tools.ui import print_tool_call
+            print_tool_call("Natasha", "lookup_technology", f"query='{query}'")
+            from tools.web_search import search_web
+            results = search_web(query, max_results=2)
+            if not results:
+                return f"No documentation found for '{query}'."
+            return "\n".join(f"- {r.title}: {r.snippet}" for r in results)
+
     async def coordinate_request(self, user_prompt: str, task_id: str, project_id: str | None = None) -> TaskBrief:
         print_agent("natasha", f"Analyzing and routing task: '{user_prompt}'")
         

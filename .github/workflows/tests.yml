@@ -32,3 +32,10 @@ jobs:
         run: python -m pip install -e '.[test]'
       - name: Run platform tests
         run: python scripts/validate.py
+      - name: Pull Docker smoke image
+        run: docker pull python:3.11-slim
+      - name: Run opt-in Docker and Graphify smoke checks
+        run: python -m pytest -m integration -v
+        env:
+          BUILDRELAY_INTEGRATION: "1"
+          DOCKER_SMOKE_IMAGE: "python:3.11-slim"

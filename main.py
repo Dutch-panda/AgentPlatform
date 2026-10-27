@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 import sys
 import argparse
@@ -5,6 +7,8 @@ import asyncio
 import re
 from datetime import datetime
 from pathlib import Path
+from typing import Any
+
 from dotenv import load_dotenv
 from pydantic_ai.models import Model
 from tools.chatgpt_auth import get_chatgpt_model

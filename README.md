@@ -26,10 +26,10 @@ BuildRelay is a Python CLI that coordinates an engineering team built with Pydan
 
 <img src="docs/diagrams/workflow.svg" alt="Natasha routes requests through research, design, or direct implementation, ending with Meti and validation." width="760">
 
-- **Natasha — coordinator:** produces a typed task brief and chooses the next lead. Can query existing vault nodes and connections.
+- **Natasha — coordinator:** produces a typed task brief, a 5-sentence intent alignment brief, and chooses the next lead. Prompts with a low-friction clarification wizard for ambiguous requirements and supports mid-way intent pivots. Can query existing vault nodes and connections.
 - **Odin — researcher:** searches vault graph metadata and related nodes to produce findings and a recommended stack. Research notes automatically list resolved source notes. The current agent has vault tools; no dedicated web-search tool is registered.
 - **Taghi — architect:** produces an architecture overview, dependencies, and ordered execution phases with explicit validation commands. Phases are constrained to actionable sandbox validation; conditional gates or unprovided external credentials are documented in architecture overview notes rather than active execution phases.
-- **Meti — implementer:** writes code through Docker commands and validates phases in order. A reported success is downgraded to failure if any phase remains unvalidated.
+- **Meti — implementer:** writes code through Docker commands with live progress spinners and validates phases in order. Generates a workspace `README.md` with run/test instructions, logs execution details to `.state/task.log`, and renders a file tree and `How to Run & Test` banner. A reported success is downgraded to failure if any phase remains unvalidated.
 
 Agents run sequentially along the selected route. Research requests continue through design and implementation; design requests continue through implementation.
 
@@ -111,6 +111,43 @@ python main.py --help
 ```
 
 The first sandbox command pulls the selected container image (defaulting to `node:18-bullseye-slim` or the configured `DEFAULT_SANDBOX_IMAGE` / `--image`) if it is missing locally. Generated files live in `workspace/<project_id>/` (or `workspace/<task_id>/` for standalone tasks); implementation summaries and phase results are saved under `vault/code-reviews/`. A returned failed implementation makes the CLI exit with status `1`.
+
+## Interactive alignment and execution modes
+
+To eliminate early misunderstandings and prevent wasted model calls, BuildRelay provides an interactive alignment gate:
+
+1. **Natasha's 5-Sentence Intent Brief:**
+   - **Goal:** Exactly what is being built.
+   - **Features:** Key functionality in scope.
+   - **Stack:** Runtime, frameworks, and base Docker image.
+   - **Exclusions:** Out-of-scope or deferred requirements.
+   - **Next Steps:** Target lead and first deliverable.
+2. **Smart Clarification Wizard:**
+   - If technical ambiguity is detected, Natasha presents 1–2 targeted multiple-choice questions with preselected defaults.
+   - Pressing **`[Enter]`** immediately confirms all recommended defaults with zero friction.
+   - Pressing **`[e]`** allows typing a custom clarification or pivoting intent.
+3. **Execution Flags:**
+   - **Default interactive:** Runs the alignment gate before initiating research or design.
+   - **Headless mode (`-y`, `--yes`, `--auto`):** Automatically accepts recommended defaults without terminal prompts; ideal for scripting and CI.
+   - **Step-by-step mode (`--step`):** Prompts for confirmation before handing off to each lead (Natasha → Odin/Taghi → Meti). If the user pivots during a step gate, downstream checkpoints in `.state/tasks.db` are safely rolled back and re-routed.
+
+## Token usage and cost analytics
+
+BuildRelay tracks exact prompt (input) and completion (output) token consumption across every lead using PydanticAI metrics:
+
+- **Cost Estimation Engine:** Calculates USD costs based on published model rates (OpenAI, Anthropic, Gemini).
+- **Local & Test Models:** Displays `$0.00 (Local)` for Ollama/vLLM and test runs.
+- **Inline Badges:** Natasha brief panels and Taghi specification cards display token tallies as each stage finishes (e.g. `Tokens Used: 1,550 (~$0.006)`).
+- **Obsidian Vault Reports:** Meti's review notes under `vault/code-reviews/` record full token metrics and costs.
+- **Completion Table:** At workflow completion, a styled Rich table summarizes prompt, completion, total tokens, and estimated cost per lead with grand totals.
+
+## Dynamic progress and project delivery
+
+- **Live Progress Spinners:** Active Docker operations and LLM generation phases display animated Rich status spinners (`rich.status.Status`) instead of terminal dumps.
+- **Clean Execution Logs:** Docker stdout and stderr are routed to `.state/task.log`. Set `BUILDRELAY_DEBUG=1` to echo full container outputs directly to the terminal.
+- **Auto-Generated Workspace README:** Meti ensures that a clean `workspace/<project_id>/README.md` is generated upon task completion, containing architecture overviews, quickstart run commands, and validation instructions.
+- **Workspace File Tree:** Renders a clean `rich.tree.Tree` showing generated project files while filtering noisy build artifacts (`__pycache__`, `.git`, `.venv`).
+- **How to Run & Test Banner:** Displays prominent quickstart commands based on the detected project stack (e.g. Python, Node.js, Rust, Go).
 
 ## Resume a task
 
@@ -225,6 +262,7 @@ Arrows show which component uses another. Shared contracts define stage outputs,
 │   ├── graphify_tool.py      Graph extraction, node search, and neighbors
 │   ├── project_notes.py      Project IDs, note creation, and shared links
 │   ├── task_ledger.py        SQLite checkpoints and per-task process locks
+│   ├── token_analytics.py    Token usage tracking, model pricing, and summary tables
 │   ├── ui.py                  Terminal styling, agent color badges, panels, and phase tables
 │   └── vault_infra.py        Safe Markdown writing, graph tool wiring, and graph updates
 ├── .github/workflows/tests.yml  Automated platform tests
@@ -276,7 +314,7 @@ python -m pip install -e '.[test]'
 python scripts/validate.py
 ```
 
-The script runs the platform tests in `tests/` (114 passing unit tests); extra pytest arguments can be appended, for example `python scripts/validate.py -k validation`. Test discovery excludes generated workspaces. The suite uses Pydantic AI `TestModel` for structured outputs and `FunctionModel` for scripted tool calls, blocks real model requests, replaces Docker and graph extraction, and writes artifacts in temporary directories. It covers routing contracts, project links, explicit dependency injection, graph retrieval, source resolution and report references, phase validation, bounded recovery, container isolation invariants, Docker failure feedback, ledger persistence, and resume behavior; it does not assess live model routing quality.
+The script runs the platform tests in `tests/` (135 passing unit tests); extra pytest arguments can be appended, for example `python scripts/validate.py -k validation`. Test discovery excludes generated workspaces. The suite uses Pydantic AI `TestModel` for structured outputs and `FunctionModel` for scripted tool calls, blocks real model requests, replaces Docker and graph extraction, and writes artifacts in temporary directories. It covers routing contracts, project links, explicit dependency injection, graph retrieval, source resolution and report references, phase validation, bounded recovery, container isolation invariants, Docker failure feedback, ledger persistence, and resume behavior; it does not assess live model routing quality.
 
 The [Platform tests workflow](.github/workflows/tests.yml) runs the same validation command on pushes and pull requests using Ubuntu with Python 3.11 and 3.14. Open [CI results](https://github.com/Dutch-panda/BuildRelay/actions/workflows/tests.yml) to inspect runs. To start a manual run, select **Run workflow**, choose a branch, and confirm. Results and failure logs appear on the commit or pull request; no model credentials or Docker service are needed. Requiring passing checks before merging is a separate repository setting.
 

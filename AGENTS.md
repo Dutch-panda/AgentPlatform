@@ -48,3 +48,4 @@ Your objective is maximum autonomy within strict security boundaries.
 - Run tests using `.venv/bin/pytest` or `.venv/bin/python scripts/validate.py`.
 - Preserve the 3-attempt validation retry budget per phase.
 - Deterministic unit tests mock external services (Docker, Graphify, model calls).
+- Opt-in integration smoke checks verify real Docker and Graphify via `BUILDRELAY_INTEGRATION=1 pytest -m integration`.

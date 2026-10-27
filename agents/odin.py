@@ -33,6 +33,7 @@ class OdinResearcher:
         research_dir: str | Path | None = None,
     ):
         self.vault_path = Path(vault_path)
+        self.model_name = model_name
         self.research_dir = Path(research_dir) if research_dir is not None else self.vault_path / "research"
         self.graph_manager = graph_manager or GraphifyVaultManager(vault_path=str(self.vault_path))
 
@@ -75,6 +76,9 @@ class OdinResearcher:
         report = result.output
         report.task_id = task_id
         report.project_id = project_id
+        from tools.token_analytics import extract_usage
+
+        report.token_usage = extract_usage(result, model_name=str(self.model_name))
         report.vault_sources = self.graph_manager.resolve_note_sources(context.retrieved_nodes)
 
         timestamp = datetime.now().strftime("%Y-%m-%d")

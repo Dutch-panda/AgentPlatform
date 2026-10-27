@@ -24,6 +24,7 @@ class TaghiArchitect:
         research_dir: str | Path | None = None,
     ):
         self.vault_path = Path(vault_path)
+        self.model_name = model_name
         self.specs_dir = Path(specs_dir) if specs_dir is not None else self.vault_path / "specs"
         self.research_dir = Path(research_dir) if research_dir is not None else self.vault_path / "research"
         self.graph_manager = graph_manager or GraphifyVaultManager(vault_path=str(self.vault_path))
@@ -77,6 +78,9 @@ class TaghiArchitect:
         spec = result.output
         spec.task_id = task_id
         spec.project_id = project_id
+        from tools.token_analytics import extract_usage
+
+        spec.token_usage = extract_usage(result, model_name=str(self.model_name))
         spec.sanitize_executable_phases()
         spec.architecture_overview = f"{directory_instruction}\n\n{spec.architecture_overview}"
 

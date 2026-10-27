@@ -25,6 +25,7 @@ class NatashaRouter:
         tasks_dir: str | Path | None = None,
     ):
         self.vault_path = Path(vault_path)
+        self.model_name = model_name
         self.tasks_dir = Path(tasks_dir) if tasks_dir is not None else self.vault_path / "tasks"
         self.graph_manager = graph_manager or GraphifyVaultManager(vault_path=str(self.vault_path))
 
@@ -60,6 +61,9 @@ class NatashaRouter:
         task_brief = result.output
         task_brief.task_id = task_id
         task_brief.project_id = project_id
+        from tools.token_analytics import extract_usage
+
+        task_brief.token_usage = extract_usage(result, model_name=str(self.model_name))
 
         timestamp = datetime.now().strftime("%Y-%m-%d")
         note_filename = self.tasks_dir / f"{task_brief.task_id}-brief.md"

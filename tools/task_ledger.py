@@ -31,6 +31,7 @@ class TaskRecord(BaseModel):
     specification: TechnicalSpec | dict | None = None
     implementation: ImplementationCheckpoint | dict = Field(default_factory=ImplementationCheckpoint)
     result: ImplementationResult | dict | None = None
+    token_usage: dict[str, Any] = Field(default_factory=dict)
     error: str | None = None
     run_number: int = Field(default=0, ge=0)
 

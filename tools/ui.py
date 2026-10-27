@@ -85,10 +85,19 @@ def print_task_header(
     console.print(panel)
 
 
-def print_brief_summary(target_lead: str, questions: list[str]) -> None:
+def print_brief_summary(
+    target_lead: str,
+    questions: list[str],
+    token_usage: dict[str, Any] | None = None,
+    model: str | None = None,
+) -> None:
     """Display Natasha's routing decision in a compact box."""
     lead_theme = _get_theme(target_lead)
     content = f"[bold]Assigned Lead:[/bold] [{lead_theme['color']}]{lead_theme['icon']} {lead_theme['name']} ({lead_theme['role']})[/]\n"
+    if token_usage:
+        from tools.token_analytics import format_token_badge
+
+        content += f"[bold]Tokens Used:[/bold]   [yellow]{format_token_badge(token_usage, model)}[/yellow]\n"
     if questions:
         content += "[bold]Key Questions:[/bold]\n" + "\n".join(f"  • [dim]{q}[/dim]" for q in questions)
     console.print(
@@ -102,10 +111,20 @@ def print_brief_summary(target_lead: str, questions: list[str]) -> None:
     )
 
 
-def print_spec_summary(base_image: str | None, phases: list[Any]) -> None:
+def print_spec_summary(
+    base_image: str | None,
+    phases: list[Any],
+    token_usage: dict[str, Any] | None = None,
+    model: str | None = None,
+) -> None:
     """Display Taghi's execution roadmap in a styled summary."""
     image = base_image or "node:18-bullseye-slim (default)"
-    header = f"[bold]Runtime Image:[/bold] [cyan]{image}[/cyan]\n[bold]Execution Roadmap ({len(phases)} phases):[/bold]\n"
+    header = f"[bold]Runtime Image:[/bold] [cyan]{image}[/cyan]\n"
+    if token_usage:
+        from tools.token_analytics import format_token_badge
+
+        header += f"[bold]Tokens Used:[/bold]   [yellow]{format_token_badge(token_usage, model)}[/yellow]\n"
+    header += f"[bold]Execution Roadmap ({len(phases)} phases):[/bold]\n"
     phase_lines = []
     for idx, phase in enumerate(phases, start=1):
         name = getattr(phase, "phase_name", str(phase))
@@ -185,6 +204,87 @@ def print_completion(task_id: str, success: bool, summary: str) -> None:
         )
     console.print()
     console.print(panel)
+    console.print()
+
+
+def print_token_summary_table(
+    token_usage_dict: dict[str, dict[str, Any]],
+    default_model: str | None = None,
+) -> None:
+    """Render a structured token usage and cost table broken down per lead."""
+    from tools.token_analytics import calculate_token_cost
+
+    table = Table(
+        title="[bold #818cf8]Token Usage & Cost Summary[/bold #818cf8]",
+        title_justify="left",
+        border_style="dim",
+        padding=(0, 1),
+    )
+    table.add_column("Lead", style="bold", min_width=18)
+    table.add_column("Prompt Tokens", justify="right", min_width=16)
+    table.add_column("Completion Tokens", justify="right", min_width=18)
+    table.add_column("Total Tokens", justify="right", min_width=14)
+    table.add_column("Est. Cost", justify="right", min_width=14)
+
+    total_prompt = 0
+    total_completion = 0
+    total_tokens = 0
+    total_cost: float = 0.0
+    all_numeric_cost = True
+
+    lead_order = ["natasha", "odin", "taghi", "meti"]
+    for k in token_usage_dict:
+        if k not in lead_order:
+            lead_order.append(k)
+
+    for lead_key in lead_order:
+        usage = token_usage_dict.get(lead_key)
+        if not usage:
+            continue
+        theme = _get_theme(lead_key)
+        lead_label = f"[{theme['color']}]{theme['icon']} {theme['name']}[/]"
+
+        inp = usage.get("input_tokens", 0)
+        out = usage.get("output_tokens", 0)
+        tot = usage.get("total_tokens", inp + out)
+        model = usage.get("model") or default_model
+
+        cost_val, cost_display = calculate_token_cost(inp, out, model)
+        if cost_val is not None:
+            total_cost += cost_val
+        else:
+            all_numeric_cost = False
+
+        total_prompt += inp
+        total_completion += out
+        total_tokens += tot
+
+        table.add_row(
+            lead_label,
+            f"{inp:,}",
+            f"{out:,}",
+            f"{tot:,}",
+            f"[green]{cost_display}[/green]" if "$" in cost_display else f"[dim]{cost_display}[/dim]",
+        )
+
+    if total_tokens > 0:
+        table.add_section()
+        if all_numeric_cost:
+            total_cost_str = f"${total_cost:.4f}" if total_cost < 0.001 else f"${total_cost:.3f}"
+        else:
+            total_cost_str = "--"
+        table.add_row(
+            "[bold white]Total[/bold white]",
+            f"[bold]{total_prompt:,}[/bold]",
+            f"[bold]{total_completion:,}[/bold]",
+            f"[bold yellow]{total_tokens:,}[/bold yellow]",
+            f"[bold green]{total_cost_str}[/bold green]"
+            if "$" in total_cost_str
+            else f"[bold dim]{total_cost_str}[/bold dim]",
+        )
+
+    console.print()
+    console.print(table)
     console.print()
 
 

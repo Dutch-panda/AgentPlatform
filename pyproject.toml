@@ -27,6 +27,11 @@ buildrelay = "main:cli_entrypoint"
 testpaths = ["tests"]
 addopts = "-q"
 pythonpath = ["."]
+markers = [
+    "integration: opt-in integration tests requiring external dependencies (Docker, Graphify)",
+    "docker: integration tests requiring a running Docker daemon",
+    "graphify: integration tests requiring graphify CLI",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["agents", "tools", "contracts"]

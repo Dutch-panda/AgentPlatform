@@ -35,7 +35,8 @@ class NatashaRouter:
                 "You are Natasha, the master coordinator and router of an elite multi-agent engineering team. "
                 "Analyze the user's request, break it down into a structured task brief, "
                 "and formulate core research questions. Decide "
-                "which lead ('odin', 'taghi', or 'meti') the task is designated for."
+                "which lead ('odin', 'taghi', or 'meti') the task is designated for. "
+                "Always generate a concise, semantic kebab-case slug (2-4 core words, omitting stop words like 'build', 'create', 'a', 'the')."
             )
         )
         # --- BINDING TOOLS TO Natasha ---

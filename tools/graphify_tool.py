@@ -79,7 +79,8 @@ class GraphifyVaultManager:
         Loads the generated graph.json structure into memory for traversal.
         """
         if not self.graph_json_path.exists():
-            print(f"[GraphifyTool Warning] graph.json not found at {self.graph_json_path}. Building graph first...")
+            from tools.ui import print_tool_call
+            print_tool_call("orchestrator", "Graphify", f"Indexing knowledge graph at {self.output_dir.name}...")
             success = self.build_graph(incremental=False)
             if not success or not self.graph_json_path.exists():
                 return {"nodes": [], "edges": []}

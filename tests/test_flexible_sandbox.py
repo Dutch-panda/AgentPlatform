@@ -45,14 +45,20 @@ def test_fast_track_spec_auto_selects_python():
 
 
 def test_task_id_format_omits_uuid():
-    from main import task_id_for
+    from main import task_id_for, slugify_task_prompt
     from datetime import datetime
     task_id = task_id_for("Build a CSV validator with tests")
     today = datetime.now().strftime("%Y%m%d")
-    assert task_id == f"task-build-a-csv-validator-with-tests-{today}"
+    assert task_id == f"task-csv-validator-tests-{today}"
     # Verify no hex uuid suffix
     parts = task_id.split("-")
     assert parts[-1] == today
+
+    # Verify stop-word filtering and length capping
+    long_prompt = "Please build a complete and flexible REST API service with SQLite database for grade records"
+    slug = slugify_task_prompt(long_prompt)
+    assert slug == "flexible-rest-api-service"
+    assert len(slug) <= 28
 
 
 def test_meti_differentiates_workspace_by_project(tmp_path, sandbox):

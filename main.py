@@ -33,8 +33,26 @@ from tools.ui import (
 load_dotenv()
 
 
+def slugify_task_prompt(prompt: str, max_words: int = 4, max_chars: int = 28) -> str:
+    """Extract a concise, semantic kebab-case slug from a user prompt."""
+    stop_words = {
+        "a", "an", "the", "and", "or", "in", "on", "at", "to", "for", "with",
+        "by", "of", "from", "build", "create", "make", "write", "implement",
+        "add", "please", "i", "want", "we", "need", "that", "this", "is", "it",
+        "tool", "app", "project", "simple", "complete",
+    }
+    words = re.findall(r"[a-z0-9]+", prompt.lower())
+    meaningful = [w for w in words if w not in stop_words]
+    selected = meaningful[:max_words] if meaningful else words[:max_words]
+    slug = "-".join(selected)
+    if len(slug) > max_chars:
+        trimmed = slug[:max_chars].rsplit("-", 1)[0]
+        slug = trimmed if trimmed else slug[:max_chars]
+    return slug or "task"
+
+
 def task_id_for(prompt: str, ledger: TaskLedger | None = None) -> str:
-    slug = re.sub(r'[^a-z0-9]+', '-', prompt.lower()).strip('-')[:48].rstrip('-') or 'task'
+    slug = slugify_task_prompt(prompt)
     base_id = f'task-{slug}-{datetime.now():%Y%m%d}'
     if ledger is None:
         return base_id

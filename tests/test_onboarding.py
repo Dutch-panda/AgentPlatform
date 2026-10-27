@@ -179,9 +179,12 @@ def test_save_env_configuration_preserves_comments_and_updates_in_place(tmp_path
 
 def test_ping_provider_connectivity_offline_or_sandboxed():
     # Should gracefully catch network/DNS errors and return True (skipped)
-    ok, msg = ping_provider_connectivity("openai", api_key="sk-test-unreachable")
-    assert ok is True
-    assert "sandboxed or offline" in msg or "endpoint reached" in msg or "Connected" in msg
+    import urllib.error
+    with patch("urllib.request.urlopen") as mock_open:
+        mock_open.side_effect = urllib.error.URLError("Network unreachable")
+        ok, msg = ping_provider_connectivity("openai", api_key="sk-test-unreachable")
+        assert ok is True
+        assert "sandboxed or offline" in msg
 
 
 def test_ping_provider_connectivity_http_401():
@@ -313,11 +316,26 @@ def test_cli_config_flag(monkeypatch):
     mock_wizard.assert_called_once_with(is_reconfig=True)
 
 
-def test_cli_zero_config_triggers_wizard_when_no_prompt(monkeypatch, clean_credentials):
-    mock_wizard = Mock(return_value=True)
+def test_cli_zero_config_triggers_wizard_when_prompt_given(monkeypatch, clean_credentials):
+    mock_wizard = Mock(return_value=False)
     monkeypatch.setattr("tools.onboarding.run_onboarding_wizard", mock_wizard)
-    monkeypatch.setattr(main.sys, "argv", ["main.py"])
+    monkeypatch.setattr(main.sys, "argv", ["main.py", "Build a feature"])
+    monkeypatch.setattr(main.sys.stdin, "isatty", lambda: True)
+    monkeypatch.delenv("BUILDRELAY_TESTING", raising=False)
 
-    import asyncio
-    asyncio.run(main.main())
+    with pytest.raises(SystemExit) as exc:
+        import asyncio
+        asyncio.run(main.main())
+    assert exc.value.code == 1
     mock_wizard.assert_called_once()
+
+
+def test_cli_zero_config_non_interactive_exits(monkeypatch, clean_credentials):
+    monkeypatch.setattr(main.sys, "argv", ["main.py", "Build a feature"])
+    monkeypatch.setattr(main.sys.stdin, "isatty", lambda: False)
+    monkeypatch.delenv("BUILDRELAY_TESTING", raising=False)
+
+    with pytest.raises(SystemExit) as exc:
+        import asyncio
+        asyncio.run(main.main())
+    assert exc.value.code == 1

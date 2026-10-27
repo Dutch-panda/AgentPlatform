@@ -9,6 +9,7 @@ from tools.graphify_tool import GraphifyVaultManager
 @pytest.fixture(autouse=True)
 def isolate_external_services(monkeypatch, tmp_path):
     monkeypatch.setattr(models, "ALLOW_MODEL_REQUESTS", False)
+    monkeypatch.setenv("BUILDRELAY_TESTING", "1")
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(GraphifyVaultManager, "build_graph", Mock(return_value=True))
     # A missed sandbox fixture must fail rather than contact a real Docker daemon.

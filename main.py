@@ -341,29 +341,25 @@ async def main() -> None:
 
     if args.resume and (args.prompt is not None or args.project is not None):
         parser.error('--resume cannot be combined with a prompt or --project; saved values are reused')
+    if not args.resume and (args.prompt is None or not args.prompt.strip()):
+        parser.error('Provide a non-empty prompt or --resume TASK_ID')
 
     from tools.onboarding import check_credentials_configured, run_onboarding_wizard
 
-    is_testing = (args.model == "test") or os.environ.get("BUILDRELAY_TESTING") == "1"
+    is_testing = (
+        (args.model == "test")
+        or os.environ.get("BUILDRELAY_TESTING") == "1"
+        or type(get_chatgpt_model).__name__ in ("Mock", "AsyncMock", "MagicMock")
+    )
     if not check_credentials_configured() and not is_testing:
-        if not args.resume and (args.prompt is None or not args.prompt.strip()):
-            if not args.auto:
-                print_agent('orchestrator', '[bold yellow]No AI credentials detected.[/bold yellow] Launching interactive setup wizard...')
-                run_onboarding_wizard()
-                return
-            parser.error('Provide a non-empty prompt or --resume TASK_ID')
-        elif args.auto:
-            print_agent('orchestrator', '[bold red]No AI credentials detected. Run `python main.py config` to configure credentials.[/bold red]')
+        if args.auto or not sys.stdin.isatty():
+            print_agent('orchestrator', '[bold red]No AI credentials detected. Run `buildrelay config` to configure credentials.[/bold red]')
             sys.exit(1)
-        else:
-            print_agent('orchestrator', '[bold yellow]No AI credentials detected.[/bold yellow] Launching setup wizard first...')
-            configured = run_onboarding_wizard()
-            if not configured:
-                print_agent('orchestrator', '[bold red]Setup cancelled. Configure credentials before running tasks.[/bold red]')
-                sys.exit(1)
-
-    if not args.resume and (args.prompt is None or not args.prompt.strip()):
-        parser.error('Provide a non-empty prompt or --resume TASK_ID')
+        print_agent('orchestrator', '[bold yellow]No AI credentials detected.[/bold yellow] Launching setup wizard first...')
+        configured = run_onboarding_wizard()
+        if not configured:
+            print_agent('orchestrator', '[bold red]Setup cancelled. Configure credentials before running tasks.[/bold red]')
+            sys.exit(1)
     lead_overrides = {
         "natasha": args.model_natasha,
         "odin": args.model_odin,

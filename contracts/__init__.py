@@ -93,6 +93,42 @@ class ExecutionPhase(BaseModel):
         return False
 
 
+class ClarificationOption(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    key: str = Field(description="Option number or identifier, e.g. '1', '2'")
+    label: str = Field(description="Description of the option, e.g. 'SQLite (local file)'")
+    is_default: bool = Field(default=False, description="Whether this is the recommended default option")
+
+
+class ClarificationQuestion(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    id: str = Field(description="Unique question identifier, e.g. 'db_choice'")
+    question: str = Field(description="Short question text, e.g. 'Preferred Database'")
+    options: list[ClarificationOption] = Field(default_factory=list, description="Available choices (strictly < 10)")
+    selected_option: str | None = Field(default=None, description="The selected option key")
+
+
+class AlignmentBrief(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    goal: str = Field(description="Sentence 1: What is being built")
+    core_features: str = Field(description="Sentence 2: Key features included")
+    tech_stack: str = Field(description="Sentence 3: Frameworks, databases, Docker image")
+    exclusions: str = Field(description="Sentence 4: What is intentionally omitted or deferred")
+    next_actions: str = Field(description="Sentence 5: Next lead handoff and first deliverable")
+
+    def to_lines(self) -> list[tuple[str, str]]:
+        return [
+            ("1. Goal:", self.goal),
+            ("2. Features:", self.core_features),
+            ("3. Stack:", self.tech_stack),
+            ("4. Exclusions:", self.exclusions),
+            ("5. Next Steps:", self.next_actions),
+        ]
+
+
 class TaskBrief(BaseModel):
     model_config = ConfigDict(extra="allow")
 
@@ -110,6 +146,8 @@ class TaskBrief(BaseModel):
         )
     )
     research_questions: list[str] = Field(description="Key questions for the target lead to investigate, if applicable")
+    alignment_brief: AlignmentBrief | dict | None = Field(default=None, description="5-sentence structured intent alignment brief")
+    clarification_questions: list[ClarificationQuestion] = Field(default_factory=list, description="Targeted multiple-choice clarification questions")
 
     def __getitem__(self, item: str) -> Any:
         try:

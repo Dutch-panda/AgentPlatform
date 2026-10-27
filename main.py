@@ -31,6 +31,8 @@ from tools.ui import (
     print_task_header,
     print_token_summary_table,
     print_workspace_tree,
+    prompt_alignment_gate,
+    prompt_step_gate,
 )
 
 load_dotenv()
@@ -100,6 +102,8 @@ async def run_task(
     ledger: TaskLedger,
     model_override: str | None = None,
     image_override: str | None = None,
+    auto: bool = False,
+    step: bool = False,
 ) -> ImplementationResult:
     # Reject unreadable stage checkpoints before authentication or external work.
     if record.brief is not None:
@@ -134,6 +138,24 @@ async def run_task(
             record.token_usage["natasha"] = brief.token_usage
         ledger.save(record)
     brief = TaskBrief.model_validate(record.brief)
+
+    # Alignment gate: 5-sentence brief and intent confirmation
+    if not implementation_started and not auto:
+        while True:
+            action, feedback, _ = prompt_alignment_gate(brief, auto=auto)
+            if action == "quit":
+                print_agent("orchestrator", "Task execution cancelled by user.")
+                sys.exit(0)
+            elif action == "edit" and feedback:
+                brief = await NatashaRouter(model_name=model).realign_intent(brief, feedback, project_id=project)
+                record.prompt = f"{record.prompt} (Clarification: {feedback})"
+                record.brief = brief
+                if getattr(brief, "token_usage", None):
+                    record.token_usage["natasha"] = brief.token_usage
+                ledger.save(record)
+            else:
+                break
+
     print_brief_summary(
         brief.target_lead,
         brief.research_questions,
@@ -145,6 +167,25 @@ async def run_task(
         objective += '\n\nScope and questions:\n' + '\n'.join(f'- {item}' for item in brief.research_questions)
 
     if record.specification is None:
+        if step:
+            gate_action, gate_feedback = prompt_step_gate(
+                brief.target_lead,
+                f"Next Lead: {brief.target_lead.upper()} will proceed with "
+                f"{'deep research' if brief.target_lead == 'odin' else 'architecture design'}.\n"
+                f"Goal: {brief.title}\n"
+                f"Objective: {objective[:180]}...",
+                auto=auto,
+            )
+            if gate_action == "quit":
+                print_agent("orchestrator", "Task execution cancelled by user.")
+                sys.exit(0)
+            elif gate_action == "pivot" and gate_feedback:
+                brief = await NatashaRouter(model_name=model).realign_intent(brief, gate_feedback, project_id=project)
+                record.prompt = f"{record.prompt} (Clarification: {gate_feedback})"
+                record.brief = brief
+                record.specification = None
+                ledger.save(record)
+
         if brief.target_lead == 'odin':
             if record.research is None:
                 record.status = 'RESEARCHING'
@@ -180,6 +221,32 @@ async def run_task(
         model=model_override,
     )
     print_phase_table(spec.phases, completed_phases=getattr(checkpoint, "validated_phases", []))
+
+    if step:
+        gate_action, gate_feedback = prompt_step_gate(
+            "meti",
+            f"Technical Specification ready with {len(spec.phases)} phases.\n"
+            f"Runtime Base Image: {spec.base_image}\n"
+            "Ready to execute container implementation?",
+            auto=auto,
+        )
+        if gate_action == "quit":
+            print_agent("orchestrator", "Task execution cancelled by user.")
+            sys.exit(0)
+        elif gate_action == "pivot" and gate_feedback:
+            brief = await NatashaRouter(model_name=model).realign_intent(brief, gate_feedback, project_id=project)
+            record.prompt = f"{record.prompt} (Clarification: {gate_feedback})"
+            record.brief = brief
+            record.specification = None
+            record.implementation = ImplementationCheckpoint()
+            ledger.save(record)
+            # Re-generate specification
+            spec = await TaghiArchitect(model_name=model).create_specification(
+                task_id, format_design_context(brief.objective, None), project_id=project
+            )
+            record.specification = spec
+            ledger.save(record)
+
     record.status = 'IMPLEMENTING'
     ledger.save(record)
 
@@ -207,6 +274,8 @@ async def main() -> None:
     parser.add_argument('--resume', type=validate_task_id, metavar='TASK_ID', help='Resume a saved local task')
     parser.add_argument('--model', help='Model identifier (e.g. openai:gpt-4o, anthropic:claude-3-5-sonnet-latest)')
     parser.add_argument('--image', help='Docker base image override (e.g. python:3.11-slim)')
+    parser.add_argument('-y', '--yes', '--auto', dest='auto', action='store_true', help='Headless mode; accept defaults without interactive prompts')
+    parser.add_argument('--step', action='store_true', help='Interactive step gates between each agent lead')
     args = parser.parse_args()
     if args.resume and (args.prompt is not None or args.project is not None):
         parser.error('--resume cannot be combined with a prompt or --project; saved values are reused')
@@ -226,7 +295,14 @@ async def main() -> None:
                 print_agent('orchestrator', 'Task is already completed; no stages were run.')
                 return
             try:
-                result = await run_task(record, ledger, model_override=args.model, image_override=args.image)
+                result = await run_task(
+                    record,
+                    ledger,
+                    model_override=args.model,
+                    image_override=args.image,
+                    auto=args.auto,
+                    step=args.step,
+                )
             except (Exception, KeyboardInterrupt, asyncio.CancelledError) as error:
                 record.status = 'FAILED'
                 record.error = f'{type(error).__name__}: {error}'

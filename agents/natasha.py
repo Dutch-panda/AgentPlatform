@@ -6,9 +6,9 @@ from pathlib import Path
 from datetime import datetime
 from pydantic_ai import Agent
 from pydantic_ai.models import Model
-from contracts import TaskBrief
+from contracts import AlignmentBrief, ClarificationOption, ClarificationQuestion, TaskBrief
 from tools.graphify_tool import GraphifyVaultManager
-from tools.project_notes import prepare_project
+from tools.project_notes import ProjectContext, prepare_project
 from tools.vault_infra import (
     register_graph_tools,
     register_note_writer_tool,
@@ -37,7 +37,17 @@ class NatashaRouter:
                 "Analyze the user's request, break it down into a structured task brief, "
                 "and formulate core research questions. Decide "
                 "which lead ('odin', 'taghi', or 'meti') the task is designated for. "
-                "Always generate a concise, semantic kebab-case slug (2-4 core words, omitting stop words like 'build', 'create', 'a', 'the')."
+                "Always generate a concise, semantic kebab-case slug (2-4 core words, omitting stop words like 'build', 'create', 'a', 'the').\n\n"
+                "INTENT ALIGNMENT & CLARIFICATION RULES:\n"
+                "1. Always populate 'alignment_brief' with exactly 5 structured sentences:\n"
+                "   - goal: Exactly what is being built.\n"
+                "   - core_features: Key functionality included in scope.\n"
+                "   - tech_stack: Frameworks, databases, and container runtime image.\n"
+                "   - exclusions: Explicitly state what is deferred or intentionally omitted.\n"
+                "   - next_actions: State the designated next lead and their first deliverable.\n"
+                "2. If the user prompt has technical ambiguity (e.g. database choice, framework variant, or auth strategy), "
+                "   generate 1 to 2 targeted 'clarification_questions' (maximum 3, strictly < 10). "
+                "   Every question MUST have numbered options and exactly one option marked is_default=True."
             )
         )
         # --- BINDING TOOLS TO Natasha ---
@@ -64,11 +74,59 @@ class NatashaRouter:
         from tools.token_analytics import extract_usage
 
         task_brief.token_usage = extract_usage(result, model_name=str(self.model_name))
+        self._ensure_alignment_brief(task_brief, user_prompt)
 
+        await self._write_brief_note(task_brief, project)
+        return task_brief
+
+    def _ensure_alignment_brief(self, brief: TaskBrief, prompt: str) -> None:
+        """Ensure alignment_brief is populated with 5 structured sentences."""
+        if not brief.alignment_brief:
+            target = brief.target_lead.capitalize()
+            brief.alignment_brief = AlignmentBrief(
+                goal=brief.title or prompt[:60],
+                core_features=brief.objective[:120] if brief.objective else prompt,
+                tech_stack="Python 3.11 / container environment",
+                exclusions="Production cloud infrastructure and external credentials deferred to local mocks.",
+                next_actions=f"{target} lead initiates {'deep investigation' if target == 'Odin' else 'architecture specification'}.",
+            )
+        elif isinstance(brief.alignment_brief, dict):
+            brief.alignment_brief = AlignmentBrief.model_validate(brief.alignment_brief)
+
+    async def realign_intent(
+        self,
+        previous_brief: TaskBrief,
+        user_feedback: str,
+        project_id: str | None = None,
+    ) -> TaskBrief:
+        """Re-align Natasha's task brief when the user clarifies or pivots their intent."""
+        print_agent("natasha", f"Re-aligning intent based on user feedback: '{user_feedback}'")
+        project = prepare_project(self.vault_path, project_id or previous_brief.project_id)
+        pivot_prompt = (
+            f"Original Task ID: {previous_brief.task_id}\n"
+            f"Original Goal: {previous_brief.title}\n"
+            f"Original Scope: {previous_brief.objective}\n"
+            f"{project.prompt}"
+            f"User Feedback / Intent Pivot: {user_feedback}\n"
+            "Please revise the task brief, re-evaluate target lead, update the 5-sentence alignment brief, "
+            "and update clarification questions."
+        )
+        result = await self.agent.run(pivot_prompt)
+        new_brief = result.output
+        new_brief.task_id = previous_brief.task_id
+        new_brief.project_id = previous_brief.project_id
+        from tools.token_analytics import extract_usage
+
+        new_brief.token_usage = extract_usage(result, model_name=str(self.model_name))
+        self._ensure_alignment_brief(new_brief, user_feedback)
+        await self._write_brief_note(new_brief, project)
+        return new_brief
+
+    async def _write_brief_note(self, task_brief: TaskBrief, project: ProjectContext) -> Path:
         timestamp = datetime.now().strftime("%Y-%m-%d")
         note_filename = self.tasks_dir / f"{task_brief.task_id}-brief.md"
         note_filename.parent.mkdir(parents=True, exist_ok=True)
-        
+
         markdown_content = f"""---
 id: "{task_brief.task_id}"
 type: "task-brief"
@@ -90,8 +148,16 @@ links: []
         for q in task_brief.research_questions:
             markdown_content += f"- {q}\n"
 
+        if task_brief.alignment_brief:
+            ab = task_brief.alignment_brief
+            lines = ab.to_lines() if hasattr(ab, "to_lines") else []
+            if lines:
+                markdown_content += "\n## Alignment Brief (5-Sentence Summary)\n"
+                for label, val in lines:
+                    markdown_content += f"- **{label}** {val}\n"
+
         note_filename.write_text(markdown_content, encoding="utf-8")
         print_agent("natasha", f"Created master task note at: {note_filename}")
 
         await update_vault_graph(self.graph_manager, note_filename)
-        return task_brief
+        return note_filename

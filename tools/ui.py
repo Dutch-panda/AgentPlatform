@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 
 from rich.console import Console
 from rich.markup import escape
@@ -391,3 +391,154 @@ def print_how_to_run(
     )
     console.print(panel)
     console.print()
+
+
+def print_alignment_brief(brief: Any) -> None:
+    """Render the 5-sentence structured Task Alignment Brief panel."""
+    ab = getattr(brief, "alignment_brief", None)
+    if not ab:
+        return
+
+    lines = ab.to_lines() if hasattr(ab, "to_lines") else []
+    if not lines and isinstance(ab, dict):
+        lines = [
+            ("1. Goal:", ab.get("goal", "")),
+            ("2. Features:", ab.get("core_features", "")),
+            ("3. Stack:", ab.get("tech_stack", "")),
+            ("4. Exclusions:", ab.get("exclusions", "")),
+            ("5. Next Steps:", ab.get("next_actions", "")),
+        ]
+
+    content_lines = []
+    for label, val in lines:
+        content_lines.append(f"[bold #38bdf8]{label:<15}[/bold #38bdf8] {escape(val)}")
+
+    panel = Panel(
+        "\n".join(content_lines),
+        title="[bold #d946ef]🎯 Task Alignment Brief[/bold #d946ef]",
+        title_align="left",
+        border_style="#d946ef",
+        padding=(1, 2),
+    )
+    console.print()
+    console.print(panel)
+
+
+def prompt_alignment_gate(
+    brief: Any,
+    auto: bool = False,
+    input_func: Callable[[str], str] | None = None,
+) -> tuple[str, str | None, dict[str, str]]:
+    """
+    Present the 5-sentence brief and any clarification questions.
+    Returns: (action, feedback_text, selected_answers)
+      action: 'confirm' | 'edit' | 'quit'
+    """
+    import sys
+
+    # Always render the alignment brief panel
+    print_alignment_brief(brief)
+
+    # Collect default answers
+    questions = getattr(brief, "clarification_questions", []) or []
+    answers: dict[str, str] = {}
+    for q in questions:
+        for opt in getattr(q, "options", []):
+            if getattr(opt, "is_default", False):
+                answers[getattr(q, "id", str(q))] = getattr(opt, "label", getattr(opt, "key", ""))
+                break
+
+    # If headless / automated / non-interactive: automatically proceed with defaults
+    ask = input_func or input
+    if auto or (input_func is None and not sys.stdin.isatty()):
+        return "confirm", None, answers
+
+    # Render clarification questions if present
+    if questions:
+        console.print(
+            "[bold yellow]⚡ Clarification Questions[/bold yellow] [dim](Press Enter to accept defaults):[/dim]"
+        )
+        for idx, q in enumerate(questions, start=1):
+            q_text = getattr(q, "question", str(q))
+            console.print(f"  [bold cyan]{idx}. {escape(q_text)}[/bold cyan]")
+            for opt in getattr(q, "options", []):
+                key = getattr(opt, "key", "")
+                lbl = getattr(opt, "label", "")
+                is_def = getattr(opt, "is_default", False)
+                def_tag = " [bold green](Default)[/bold green]" if is_def else ""
+                console.print(f"     [{key}] {escape(lbl)}{def_tag}")
+        console.print()
+
+    console.print(
+        "[bold]👉 Action:[/bold] [green][Y/enter][/green] Confirm & Launch  |  "
+        "[yellow][e][/yellow] Edit / Pivot Intent  |  [red][q][/red] Quit"
+    )
+    try:
+        user_choice = ask("> ").strip()
+    except (EOFError, KeyboardInterrupt):
+        return "quit", None, {}
+
+    low = user_choice.lower()
+    if low in ("", "y", "yes"):
+        return "confirm", None, answers
+    if low in ("q", "quit", "exit"):
+        return "quit", None, {}
+    if low in ("e", "edit"):
+        try:
+            feedback = ask("📝 Describe intent changes / clarifications: ").strip()
+            return "edit", feedback, answers
+        except (EOFError, KeyboardInterrupt):
+            return "quit", None, {}
+
+    return "edit", user_choice, answers
+
+
+def prompt_step_gate(
+    stage_name: str,
+    summary_text: str,
+    auto: bool = False,
+    input_func: Callable[[str], str] | None = None,
+) -> tuple[str, str | None]:
+    """
+    Step gate confirmation for --step mode before executing a lead.
+    Returns: ('confirm' | 'pivot' | 'quit', feedback_text)
+    """
+    import sys
+
+    theme = _get_theme(stage_name)
+    panel = Panel(
+        summary_text.strip(),
+        title=f"[{theme['color']}]{theme['icon']} Step Gate: {theme['name']} ({theme['role']})[/{theme['color']}]",
+        title_align="left",
+        border_style=theme["color"].split()[-1] if " " in theme["color"] else theme["color"],
+        padding=(1, 2),
+    )
+    console.print()
+    console.print(panel)
+
+    ask = input_func or input
+    if auto or (input_func is None and not sys.stdin.isatty()):
+        return "confirm", None
+
+    console.print(
+        f"[bold]Proceed to {theme['name']}?[/bold] [green][Y/enter][/green] Proceed  |  "
+        f"[yellow][e][/yellow] Pivot / Re-route  |  [red][q][/red] Abort"
+    )
+    try:
+        choice = ask("> ").strip()
+    except (EOFError, KeyboardInterrupt):
+        return "quit", None
+
+    low = choice.lower()
+    if low in ("", "y", "yes"):
+        return "confirm", None
+    if low in ("q", "quit", "exit"):
+        return "quit", None
+    if low in ("e", "edit", "pivot"):
+        try:
+            feedback = ask("📝 Describe intent pivot: ").strip()
+            return "pivot", feedback
+        except (EOFError, KeyboardInterrupt):
+            return "quit", None
+
+    return "pivot", choice

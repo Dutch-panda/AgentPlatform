@@ -27,7 +27,7 @@ BuildRelay is a Python CLI that coordinates an engineering team built with Pydan
 <img src="docs/diagrams/workflow.svg" alt="Natasha routes requests through research, design, or direct implementation, ending with Meti and validation." width="760">
 
 - **Natasha — coordinator:** produces a typed task brief, a 5-sentence intent alignment brief, and chooses the next lead. Prompts with a low-friction clarification wizard for ambiguous requirements, supports mid-way intent pivots, queries existing vault connections, and can look up official library names online.
-- **Odin — researcher:** queries vault graph metadata and external web documentation / package registries (PyPI, npm) to produce technical findings and recommended stacks. Research notes cite resolved vault notes and external web sources. Enforces strict SSRF guardrails (blocking private/internal IP ranges) and per-task search call budgets.
+- **Odin — researcher:** queries vault graph metadata and external web documentation / package registries (PyPI, npm) to produce technical findings and recommended stacks. Research notes record resolved vault notes and external search-result URLs. URL checks reject selected local hostnames and literal private IP addresses; Odin has a three-call search budget per research invocation.
 - **Taghi — architect:** produces an architecture overview, dependencies, and ordered execution phases with explicit validation commands. Phases are constrained to actionable sandbox validation; conditional gates or unprovided external credentials are documented in architecture overview notes rather than active execution phases.
 - **Meti — implementer:** writes code through Docker commands with live progress spinners and validates phases in order. Generates a workspace `README.md` with run/test instructions, logs execution details to `.state/task.log`, and renders a file tree and `How to Run & Test` banner. A reported success is downgraded to failure if any phase remains unvalidated.
 
@@ -37,7 +37,7 @@ Agents run sequentially along the selected route. Research requests continue thr
 
 ### 1. Prepare the environment
 
-You need **Python 3.11+**, **Docker installed and running**, and a ChatGPT account with access to the configured model through the provider's sign-in flow. Network access is needed for authentication, model calls, and image or dependency downloads. Obsidian is optional for viewing notes.
+You need **Python 3.11+**, **Docker installed and running**, and a configured model provider: API credentials, ChatGPT OAuth, or a compatible local model endpoint. Remote providers need network access for authentication and model calls. Web search and image or dependency downloads also require connectivity; a preconfigured local model can avoid remote inference. Obsidian is optional for viewing notes.
 
 Clone the repository if you have not already done so:
 
@@ -80,7 +80,7 @@ If you launch BuildRelay on a fresh machine without credentials, the CLI automat
 
 The wizard guides you through:
 1. **Provider Selection:**
-   - **ChatGPT Web Auth (Codex / Browser Subscription):** Connects to your ChatGPT Plus/Team subscription with zero API key charges. Supports Codex models (`gpt-6.1-sol`, `gpt-6.1`, `gpt-6`, `gpt-5.5`).
+   - **ChatGPT Web Auth (Codex / Browser Subscription):** Connects to your ChatGPT Plus/Team subscription without entering an API key; provider access and usage limits still apply. Supports Codex models (`gpt-6.1-sol`, `gpt-6.1`, `gpt-6`, `gpt-5.5`).
    - **OpenAI API:** Direct API key for GPT-4o, GPT-4o-mini, o3-mini, o1.
    - **Anthropic Claude:** Direct API key for Claude 3.7 Sonnet, Claude 3.5 Haiku.
    - **Google Gemini:** Direct API key for Gemini 2.0 Flash, Gemini 2.5 Pro.
@@ -88,7 +88,7 @@ The wizard guides you through:
    - **Custom / OpenRouter Gateway:** OpenRouter or custom OpenAI-compatible proxies.
 2. **Masked Input & Validation:**
    - Inputs are masked for security (`password=True`).
-   - A non-blocking reachability ping checks syntax and endpoint connectivity before saving, gracefully handling offline or sandboxed setups.
+   - A short, synchronous reachability check runs for supported providers before saving. Connectivity failures can be treated as skipped checks; setup completion does not prove model access.
 3. **Execution Tier Preset:**
    - Sets your default tier: `balanced` (default), `fast`, or `powerful`.
 4. **Lead-Specific Model Customization (Optional):**
@@ -180,7 +180,7 @@ To eliminate early misunderstandings and prevent wasted model calls, BuildRelay 
 
 BuildRelay tracks exact prompt (input) and completion (output) token consumption across every lead using PydanticAI metrics:
 
-- **Cost Estimation Engine:** Calculates USD costs based on published model rates (OpenAI, Anthropic, Gemini).
+- **Cost Estimation Engine:** Estimates USD costs using a bundled model-rate table (OpenAI, Anthropic, Gemini). Rates and cache discounts are approximations, not provider billing records.
 - **Local & Test Models:** Displays `$0.00 (Local)` for Ollama/vLLM and test runs.
 - **Inline Badges:** Natasha brief panels and Taghi specification cards display token tallies as each stage finishes (e.g. `Tokens Used: 1,550 (~$0.006)`).
 - **Obsidian Vault Reports:** Meti's review notes under `vault/code-reviews/` record full token metrics and costs.
@@ -202,7 +202,7 @@ To balance execution speed, reasoning depth, and cost efficiency, BuildRelay pro
   - Interactive users can press **`[Enter]`** to confirm, **`[c]`** to quickly switch tiers, or **`[q]`** to abort. Auto/headless runs (`-y`/`--auto`) accept automatically.
 - **Prompt Prefix Caching:**
   - All agent system prompts, static guidelines, and contracts are stabilized at prompt prefixes.
-  - Provider prompt caching (`model_settings={"cache": True}`) is enabled across Anthropic, OpenAI, and Gemini, reducing latency by up to 80% and input token costs by up to 90% during Meti's Docker retry cycles.
+  - Agents pass `model_settings={"cache": True}`. Actual caching depends on the provider, model, and SDK support; BuildRelay does not guarantee a cache hit or measured latency or cost savings.
   - Cached tokens are detected and discounted in token summary badges and ledger reports.
 - **Context Pruning & Compression:**
   - **Markdown Sanitization:** `prune_markdown` strips verbose YAML frontmatter, empty sections, and backlink blocks.
@@ -211,20 +211,20 @@ To balance execution speed, reasoning depth, and cost efficiency, BuildRelay pro
 
 ## Web and documentation search with guardrails
 
-Odin and Natasha have access to safe, token-efficient web search and package verification tools:
+Natasha and Odin have documentation search tools; Odin also has package registry lookup:
 
-- **Zero-Config Web Search:** Uses DuckDuckGo HTML search out-of-the-box, with optional `TAVILY_API_KEY` support.
-- **SSRF & Network Guardrails:** Blocks non-HTTP(S) schemes, localhost, private IP subnets (`10.0.0.0/8`, `192.168.0.0/16`, `172.16.0.0/12`), loopbacks, and cloud metadata services (`169.254.169.254`). Read-only GET requests only; zero arbitrary POSTs or form submissions.
-- **Noise-Cutting HTML Distillation:** Strips boilerplate, scripts, styles, navigation bars, cookie banners, and footers, extracting clean Markdown and code snippets with strict token caps (max ~750 tokens per page).
-- **Package Registry Verification:** Verifies official package existence and latest releases on PyPI (`https://pypi.org/pypi/<pkg>/json`) and npm before recommending them, preventing hallucinated package attacks (typosquatting).
-- **Search Call Budget:** Restricts Odin to a maximum budget of **3 web searches per task** to avoid unbounded browsing loops. All cited URLs are recorded in the research report under `vault/research/`.
-- **Local Disk Caching:** Query results are cached under `.state/search_cache/` so identical library queries across runs consume zero extra tokens.
+- **Web Search:** Uses DuckDuckGo HTML search without a search API key, with optional `TAVILY_API_KEY` support. Natasha receives up to two results per lookup; Odin receives up to three.
+- **URL Checks:** Rejects non-HTTP(S) URLs, selected local hostnames, and literal private, loopback, link-local, reserved, or multicast IP addresses. These checks do not resolve DNS or revalidate redirects, so they are not a complete SSRF defense. The optional Tavily integration sends a POST request to its search API.
+- **Page Extraction Helper:** `tools/web_search.py` includes `fetch_web_page`, which extracts text from HTML and limits extracted content to 3,000 characters by default. This helper is not currently registered as an agent tool: research uses search snippets rather than full page reads. The character cap is not a response-download limit or a precise token cap.
+- **Package Registry Lookup:** Odin can query PyPI or npm for a package name and latest release metadata. Registry presence does not establish authenticity, suitability, or safety. On connectivity errors the helper currently returns `exists=True` with a verification-skipped note, and the agent wrapper can label that result verified; independently verify dependencies before use.
+- **Search Call Budget:** Odin allows at most **three search calls per research invocation**, including cached lookups. This does not limit Natasha lookups or registry calls. Recorded external sources are search-result URLs, not claim-level citations or evidence of full-page reading.
+- **Local Disk Caching:** Successful query results are cached under `.state/search_cache/`. Reuse avoids another search request, but returned snippets still consume model context. There is currently no cache expiry.
 
 ## Dynamic progress and project delivery
 
 - **Live Progress Spinners:** Active Docker operations and LLM generation phases display animated Rich status spinners (`rich.status.Status`) instead of terminal dumps.
 - **Clean Execution Logs:** Docker stdout and stderr are routed to `.state/task.log`. Set `BUILDRELAY_DEBUG=1` to echo full container outputs directly to the terminal.
-- **Auto-Generated Workspace README:** Meti ensures that a clean `workspace/<project_id>/README.md` is generated upon task completion, containing architecture overviews, quickstart run commands, and validation instructions.
+- **Auto-Generated Workspace README:** Meti creates a fallback `README.md` in the project or standalone task workspace when one is missing or empty, with architecture, run, and validation guidance. Existing nonempty READMEs are preserved; review the instructions against the generated project.
 - **Workspace File Tree:** Renders a clean `rich.tree.Tree` showing generated project files while filtering noisy build artifacts (`__pycache__`, `.git`, `.venv`).
 - **How to Run & Test Banner:** Displays prominent quickstart commands based on the detected project stack (e.g. Python, Node.js, Rust, Go).
 
@@ -282,6 +282,8 @@ Each new task gets a permanent ID shaped like `task-<prompt-slug>-YYYYMMDD` (e.g
 ```text
 .state/tasks.db                      Local workflow ledger and checkpoints
 .state/<task_id>.lock                Local process lock file (may remain after exit)
+.state/task.log                      Shared execution log
+.state/search_cache/                 Cached web search results (no expiry)
 workspace/<project_or_task_id>/       Generated source, tests, docs, dependencies
 vault/
 ├── tasks/<task_id>-brief.md          Routing brief with the permanent task ID
@@ -296,7 +298,7 @@ The local `.state/` directory, generated workspace files, stage notes, and graph
 
 ## Execution and validation
 
-- Each command runs in a **fresh Docker container**, with the project or task workspace mounted at `/app/workspace/<project_or_task_id>/`.
+- Each command runs in a **fresh Docker container**, with the project or task workspace mounted at `/app/workspace/<task_id>/`.
 - Files in that mount persist across commands. Container-local installs and changes outside it do not; keep durable dependencies in the mounted directory.
 - Each phase must pass its **exact validation command**, submitted separately with its phase name, in the declared order. Successful command exit codes are recorded as validation results.
 - Failed phase validation returns combined stdout/stderr to Meti with the remaining attempt count. Meti can repair and rerun the same check, up to **three validation attempts per phase per run** (one initial attempt and two retries). The third failure stops execution before more sandbox commands or later phases.
@@ -340,6 +342,8 @@ Arrows show which component uses another. Shared contracts define stage outputs,
 │   ├── context_pruner.py      Markdown stripping, graph context ranking, and Docker log slicing
 │   ├── docker_runner.py      Container lifecycle and workspace mounts
 │   ├── graphify_tool.py      Graph extraction, node search, and neighbors
+│   ├── onboarding.py         Interactive provider setup and local .env persistence
+│   ├── web_search.py         Search results, URL checks, page helper, and registry lookup
 │   ├── model_tiers.py        Tiered routing presets, budget estimation, and lead overrides
 │   ├── project_notes.py      Project IDs, note creation, and shared links
 │   ├── task_ledger.py        SQLite checkpoints and per-task process locks
@@ -371,12 +375,12 @@ Arrows show which component uses another. Shared contracts define stage outputs,
 
 ## Security and isolation boundaries
 
-BuildRelay protects host credentials and filesystem integrity through multiple layers of sandboxing:
+BuildRelay uses Docker workspace mounts and constrained host-side tools. These are isolation boundaries, not a guarantee against hostile generated code:
 
 - **Credential & API Key Isolation:** Docker containers executed by Meti do **not** inherit host environment variables. Host API keys (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, etc.) are never passed to containers. Running `env`, `printenv`, or inspecting process environments inside the container reveals only standard container defaults.
 - **Workspace Containment:** Docker containers mount strictly the target task or project workspace (`workspace/<task_id>/` or `workspace/<project_id>/`) to `/app/workspace/<task_id>/`. The host project root, `.env`, `.git/`, and `.state/` directories are **never mounted**. Path traversal via task IDs is blocked by strict regex validation (`^[A-Za-z0-9][A-Za-z0-9_-]*$`) and filesystem root containment checks.
-- **Agent Tool Boundaries:** Host-level agents (Natasha, Odin, Taghi) operate with read-only Obsidian vault graph queries and safe Markdown note writers. They have no terminal, shell, or arbitrary filesystem access.
-- **Safe Vault Artifact Writing:** Stage artifacts are written using `safe_write_markdown`, which rejects directory traversal (`..`) and strictly enforces file confinement within designated vault directories (`tasks/`, `research/`, `specs/`, `code-reviews/`).
+- **Agent Tool Boundaries:** Host-level agents (Natasha, Odin, Taghi) use vault graph queries and constrained Markdown note writers; Natasha and Odin also have external search tools, and Odin has registry lookup. They have no terminal, shell, or arbitrary filesystem access.
+- **Vault Artifact Writing:** Model-callable note tools use `safe_write_markdown` to constrain their destinations. Application-generated briefs, research, specifications, and reviews also use direct file writes to configured artifact directories; the shared safe writer does not mediate every artifact write.
 - **No Host Execution:** The host Python application never runs `eval()`, `exec()`, or `subprocess` on generated user code from `workspace/`. All compilation, execution, and tests occur strictly inside Docker containers.
 - **Credential Storage Security:** `.env` and `.env.*` (including `.env.chatgpt-auth.json`) are ignored by Git. The interactive onboarding wizard (`tools/onboarding.py`) and OAuth credential flows enforce atomic file writes with strict `0o600` permissions (readable and writable only by the owner). Host credentials are never mounted into containers or stored in global locations.
 
@@ -384,7 +388,7 @@ BuildRelay protects host credentials and filesystem integrity through multiple l
 
 The installed distribution provides the console script entry point `buildrelay` (e.g. `buildrelay "prompt"` or `buildrelay config`), or you can run directly from the checkout with `python main.py`. Runtime dependencies and Python requirements are declared in [pyproject.toml](pyproject.toml); dependency versions are lower bounds rather than a locked environment.
 
-The agent classes can also be called directly with a `model_name` (model string or Pydantic AI model object) and a `vault_path`. Agents support explicit dependency injection: `graph_manager`, custom artifact storage directories (`tasks_dir`, `research_dir`, `specs_dir`, `code_reviews_dir`), and `MetiImplementer` additionally accepts custom `sandbox` runners (e.g. `DockerSandboxRunner` or mock test runners). Constructors defer Docker connections and directory creation until operations actually require them. Programmatic Meti calls can supply `checkpoint`, `checkpoint_callback`, and a new `run_number` to persist and restore implementation progress; the CLI connects these to the ledger automatically. The CLI supplies one model to every stage; these constructor options are not CLI flags.
+The agent classes can also be called directly with a `model_name` (model string or Pydantic AI model object) and a `vault_path`. Agents support explicit dependency injection: `graph_manager`, custom artifact storage directories (`tasks_dir`, `research_dir`, `specs_dir`, `code_reviews_dir`), and `MetiImplementer` additionally accepts custom `sandbox` runners (e.g. `DockerSandboxRunner` or mock test runners). Constructors defer Docker connections and directory creation until operations actually require them. Programmatic Meti calls can supply `checkpoint`, `checkpoint_callback`, and a new `run_number` to persist and restore implementation progress; the CLI connects these to the ledger automatically. The CLI resolves a model per lead from provider tier presets and overrides. Collaborator injection and custom artifact-directory options are programmatic interfaces, not CLI flags.
 
 ### Testing
 
@@ -395,7 +399,7 @@ python -m pip install -e '.[test]'
 python scripts/validate.py
 ```
 
-The script runs the platform tests in `tests/` (188 passing unit tests); extra pytest arguments can be appended, for example `python scripts/validate.py -k validation`. Test discovery excludes generated workspaces. The suite uses Pydantic AI `TestModel` for structured outputs and `FunctionModel` for scripted tool calls, blocks real model requests, replaces Docker and graph extraction, and writes artifacts in temporary directories. It covers routing contracts, project links, explicit dependency injection, graph retrieval, source resolution and report references, phase validation, bounded recovery, container isolation invariants, Docker failure feedback, ledger persistence, and resume behavior; it does not assess live model routing quality.
+The script runs the platform tests in `tests/`; extra pytest arguments can be appended, for example `python scripts/validate.py -k validation`. Test discovery excludes generated workspaces. The suite uses Pydantic AI `TestModel` for structured outputs and `FunctionModel` for scripted tool calls, blocks real model requests, replaces Docker and graph extraction, and writes artifacts in temporary directories. It covers routing contracts, project links, explicit dependency injection, graph retrieval, source resolution and report references, phase validation, bounded recovery, container isolation invariants, Docker failure feedback, ledger persistence, resume behavior, onboarding, model tiers, token estimates, alignment gates, and mocked web search; it does not assess live model routing quality.
 
 The [Platform tests workflow](.github/workflows/tests.yml) runs the same validation command on pushes and pull requests using Ubuntu with Python 3.11 and 3.14. Open [CI results](https://github.com/Dutch-panda/BuildRelay/actions/workflows/tests.yml) to inspect runs. To start a manual run, select **Run workflow**, choose a branch, and confirm. Results and failure logs appear on the commit or pull request; no model credentials or Docker service are needed. Requiring passing checks before merging is a separate repository setting.
 
@@ -410,6 +414,9 @@ Documentation has two roles:
 
 BuildRelay is version **0.1.0**. These details matter when interpreting its output:
 
+- **Web research:** search snippets and registry metadata are available; full-page fetching is not wired into the agents. URL validation has DNS/redirect gaps, and an offline registry lookup can be misreported as verified.
+- **Estimates and caching:** model availability, prices, and caching behavior depend on the provider. Bundled cost estimates are not billing guarantees.
+- **Shared workspaces:** locks are per task, not per project; avoid simultaneous tasks modifying the same project directory.
 - **Optional stage links:** specification and review frontmatter can link to skipped stages; a wikilink does not guarantee its target exists.
 - **Container isolation:** network access is enabled, the task directory is writable, and the runner does not configure CPU or memory limits.
 - **Validation scope:** phase completion reflects command exit codes. It does not independently establish test quality or provide a separate human code review.

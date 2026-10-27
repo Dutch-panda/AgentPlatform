@@ -34,8 +34,15 @@ Your objective is maximum autonomy within strict security boundaries.
 - **Ledger & Persistence**: Stored locally in SQLite at `.state/tasks.db`. Checkpoints are validated with `ImplementationCheckpoint.validate_plan_consistency`.
 - **Workspaces**: Generated code lives in `workspace/<project_id>/` (or `workspace/<task_id>/`).
 - **Dependency Injection**: Agents accept explicit collaborator parameters (`graph_manager`, `sandbox`, artifact directories). Constructors defer Docker client connections and directory creation until operations need them.
-- **Security & Vault Isolation**: Docker containers execute without host environment variables passed and only mount the task workspace. Vault notes and graph tools are registered and written strictly through `tools/vault_infra.py` safe writers.
+- **Security & Vault Isolation**: Docker containers execute without host environment variables passed and only mount the task workspace. Model-callable vault note tools use `tools/vault_infra.py` safe writers. Application-generated stage artifacts also use direct writes to configured directories; do not assume every artifact write passes through the shared writer.
 - **Terminal UI & Diagnostics**: Console visuals use `rich` via `tools/ui.py` for role-based badges (Natasha, Odin, Taghi, Meti), panels, and phase tables. Diagnostic tool calls are subdued, and Graphify subprocess stderr is suppressed unless `BUILDRELAY_DEBUG=1` is set.
+
+## Model Configuration & Research
+- Per-lead models are selected through `tools/model_tiers.py`; onboarding lives in `tools/onboarding.py`.
+- Natasha and Odin use web search snippets from `tools/web_search.py`; Odin can query PyPI/npm and records search-result URLs.
+- Odin has three search calls per research invocation. Registry lookups and Natasha searches are outside that budget.
+- URL checks do not resolve DNS or revalidate redirects. Page fetching is a helper, not a registered agent tool. Registry connectivity failures do not establish successful verification.
+- Token costs are estimates from bundled rates; SDK cache settings do not guarantee provider caching.
 
 ## Testing & Verification
 - Run tests using `.venv/bin/pytest` or `.venv/bin/python scripts/validate.py`.

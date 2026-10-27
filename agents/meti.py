@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import re
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
 
@@ -26,7 +28,7 @@ from tools.docker_runner import DockerSandboxRunner
 from tools.graphify_tool import GraphifyVaultManager
 from tools.project_notes import prepare_project
 from tools.vault_infra import update_vault_graph
-from tools.ui import print_agent, print_tool_call
+from tools.ui import agent_status, print_agent, print_tool_call
 
 
 class MetiImplementer:
@@ -89,8 +91,25 @@ class MetiImplementer:
             if ctx.deps.base_image is not None:
                 call_kwargs["image"] = ctx.deps.base_image
 
-            result = self.sandbox.execute_code(shell_command, **call_kwargs)
+            with agent_status("docker", f"Running: {shell_command[:60]}"):
+                result = self.sandbox.execute_code(shell_command, **call_kwargs)
             ctx.deps.in_flight_command = None
+
+            # Route docker stdout/stderr to .state/task.log
+            try:
+                state_dir = Path(".state")
+                state_dir.mkdir(parents=True, exist_ok=True)
+                task_log = state_dir / "task.log"
+                with task_log.open("a", encoding="utf-8") as f:
+                    f.write(
+                        f"\n--- [{datetime.now().isoformat()}] Command: {shell_command} (Exit: {result.get('exit_code')}) ---\n"
+                    )
+                    f.write(str(result.get("output", "")))
+            except Exception:
+                pass
+
+            if os.environ.get("BUILDRELAY_DEBUG"):
+                print(result.get("output", ""))
 
             if phase_name is not None:
                 result = ExecutionPolicy.record_validation_attempt(
@@ -193,7 +212,12 @@ class MetiImplementer:
                     )
                     break
                 previous_attempts = len(state.validation_attempts)
-                result = await self.agent.run(prompt, deps=state, message_history=history)
+                current_phase_name = next(
+                    (p.phase_name for p in state.phases if p.phase_name not in set(state.validated_phases)),
+                    "Finalizing",
+                )
+                with agent_status("meti", f"Phase [{current_phase_name}]: implementing and validating..."):
+                    result = await self.agent.run(prompt, deps=state, message_history=history)
                 implementation_result = result.output
 
                 if not ExecutionPolicy.should_trigger_recovery(state, phases, previous_attempts):
@@ -231,5 +255,58 @@ class MetiImplementer:
         note_filename = write_review_note(self.code_reviews_dir, task_id, markdown_content)
         print_agent("meti", f"Saved code review note to: {note_filename}")
 
+        self._ensure_workspace_readme(
+            workspace_dir=workspace_dir,
+            task_id=task_id,
+            spec_overview=spec_overview,
+            phases=phases,
+            result=implementation_result,
+        )
+
         await update_vault_graph(self.graph_manager, note_filename)
         return implementation_result
+
+    def _ensure_workspace_readme(
+        self,
+        workspace_dir: str,
+        task_id: str,
+        spec_overview: str,
+        phases: list[ExecutionPhase],
+        result: ImplementationResult,
+    ) -> Path:
+        target_dir = self.workspace_path / workspace_dir
+        readme_path = target_dir / "README.md"
+        if not target_dir.exists():
+            target_dir.mkdir(parents=True, exist_ok=True)
+
+        if not readme_path.exists() or not readme_path.read_text(encoding="utf-8").strip():
+            test_cmd = phases[-1].validation_command if phases else "pytest"
+            run_cmd = "python main.py" if (target_dir / "main.py").exists() else "python -m src.main"
+            phases_md = "\n".join(
+                [f"- **{p.phase_name}**: `{p.validation_command}` - {p.instructions}" for p in phases]
+            )
+            content = f"""# {task_id}
+
+{spec_overview.strip()}
+
+## Quickstart
+
+### Run
+```bash
+{run_cmd}
+```
+
+### Test & Validation
+```bash
+{test_cmd}
+```
+
+## Implemented Phases
+{phases_md}
+
+## Status
+- **Result:** {result.status.upper()}
+- **Summary:** {result.summary}
+"""
+            readme_path.write_text(content.strip() + "\n", encoding="utf-8")
+        return readme_path

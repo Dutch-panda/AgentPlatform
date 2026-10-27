@@ -25,9 +25,11 @@ from tools.ui import (
     print_agent,
     print_brief_summary,
     print_completion,
+    print_how_to_run,
     print_phase_table,
     print_spec_summary,
     print_task_header,
+    print_workspace_tree,
 )
 
 load_dotenv()
@@ -214,12 +216,16 @@ async def main() -> None:
             record.error = None if result.status == 'success' else result.summary
             ledger.save(record)
             print_completion(task_id, result.status == 'success', result.summary)
+            if result.status == 'success':
+                workspace_dir = record.project_id or record.task_id
+                workspace_path = Path("workspace") / workspace_dir
+                print_workspace_tree(workspace_path)
+                print_how_to_run(workspace_path)
             if result.status != 'success':
                 sys.exit(1)
     except Exception as error:
         print_agent('orchestrator', f'[bold red]{error}[/bold red]')
         print_agent('orchestrator', f'To retry a saved task: python main.py --resume {task_id}')
-        sys.exit(1)
         sys.exit(1)
 
 

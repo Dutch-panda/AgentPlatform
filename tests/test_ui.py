@@ -7,14 +7,17 @@ import pytest
 from contracts import ExecutionPhase, TaskBrief, TechnicalSpec
 from tools.graphify_tool import GraphifyVaultManager, _original_build_graph
 from tools.ui import (
+    agent_status,
     console,
     print_agent,
     print_brief_summary,
     print_completion,
+    print_how_to_run,
     print_phase_table,
     print_spec_summary,
     print_task_header,
     print_tool_call,
+    print_workspace_tree,
 )
 
 
@@ -161,3 +164,79 @@ def test_graphify_debug_mode_prints_stderr(tmp_path, monkeypatch, capsys):
     captured = capsys.readouterr()
     assert "[GraphifyTool Error] Subprocess failed with code 2" in captured.out
     assert "verbose stderr dump" in captured.out
+
+
+def test_agent_status_context_manager():
+    with agent_status("meti", "Running tests...") as status:
+        assert status is not None
+
+
+def test_print_workspace_tree(tmp_path, capsys):
+    ws = tmp_path / "workspace-calc"
+    ws.mkdir()
+    (ws / "README.md").write_text("# Calc")
+    (ws / "main.py").write_text("print('calc')")
+    sub = ws / "pkg"
+    sub.mkdir()
+    (sub / "calc.py").write_text("def add(): pass")
+    (ws / "__pycache__").mkdir()
+    (ws / "__pycache__" / "cached.pyc").write_text("junk")
+
+    print_workspace_tree(ws)
+    out = capsys.readouterr().out
+    assert "workspace-calc" in out
+    assert "README.md" in out
+    assert "main.py" in out
+    assert "pkg" in out
+    assert "calc.py" in out
+    assert "__pycache__" not in out
+    assert "cached.pyc" not in out
+
+
+def test_print_how_to_run_auto_detection(tmp_path, capsys):
+    ws = tmp_path / "node-app"
+    ws.mkdir()
+    (ws / "package.json").write_text('{"name": "app"}')
+    (ws / "index.js").write_text('console.log("hello")')
+
+    print_how_to_run(ws)
+    out = capsys.readouterr().out
+    assert "How to Run & Test" in out
+    assert "npm start" in out
+    assert "npm test" in out
+
+    py_ws = tmp_path / "py-app"
+    py_ws.mkdir()
+    (py_ws / "main.py").write_text("print('hello')")
+    print_how_to_run(py_ws)
+    out2 = capsys.readouterr().out
+    assert "python main.py" in out2
+    assert "pytest" in out2
+
+
+def test_meti_ensures_workspace_readme(tmp_path):
+    from contracts import ImplementationResult
+    from agents.meti import MetiImplementer
+    meti = MetiImplementer(
+        vault_path=str(tmp_path / "vault"),
+        workspace_path=str(tmp_path / "workspace"),
+        model_name="test",
+    )
+    phases = [
+        ExecutionPhase(phase_name="1-core", instructions="Create parser", validation_command="pytest tests/test_parser.py")
+    ]
+    result = ImplementationResult(task_id="task-parser", status="success", summary="Implemented parser", executed_phases=["1-core"])
+
+    readme = meti._ensure_workspace_readme(
+        workspace_dir="task-parser",
+        task_id="task-parser",
+        spec_overview="Core parsing engine",
+        phases=phases,
+        result=result,
+    )
+    assert readme.exists()
+    content = readme.read_text(encoding="utf-8")
+    assert "# task-parser" in content
+    assert "pytest tests/test_parser.py" in content
+    assert "Core parsing engine" in content
+    assert "SUCCESS" in content

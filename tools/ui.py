@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Any, Iterable
 
 from rich.console import Console
@@ -11,6 +12,7 @@ from rich.markup import escape
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
+from rich.tree import Tree
 
 console = Console(highlight=False)
 
@@ -45,6 +47,19 @@ def print_tool_call(agent: str, action: str, detail: str) -> None:
     """Print a subtle, dimmed tool invocation line to prevent clutter."""
     theme = _get_theme(agent)
     console.print(f"   [dim]↳ \\[{escape(theme['name'])}\\] {escape(action)}: {escape(detail)}[/dim]")
+
+
+@contextmanager
+def agent_status(agent: str, message: str):
+    """Display an animated spinner with the agent's role icon and theme."""
+    theme = _get_theme(agent)
+    status_text = f"[{theme['color']}]{theme['icon']} [{escape(theme['name'])}][/] {escape(message)}"
+    status = console.status(status_text, spinner="dots")
+    status.start()
+    try:
+        yield status
+    finally:
+        status.stop()
 
 
 def print_task_header(
@@ -169,5 +184,110 @@ def print_completion(task_id: str, success: bool, summary: str) -> None:
             padding=(1, 2),
         )
     console.print()
+    console.print(panel)
+    console.print()
+
+
+def print_workspace_tree(workspace_path: str | Path, max_depth: int = 3) -> None:
+    """Print a formatted rich.tree.Tree of all generated project files."""
+    path = Path(workspace_path)
+    if not path.exists():
+        return
+
+    tree = Tree(f"[bold blue]📁 {path.name}/[/bold blue]")
+    ignore_dirs = {
+        ".git",
+        "__pycache__",
+        ".pytest_cache",
+        ".venv",
+        ".mypy_cache",
+        ".ruff_cache",
+        "node_modules",
+        ".DS_Store",
+    }
+
+    def _build_tree(current_dir: Path, current_node: Tree, depth: int) -> None:
+        if depth > max_depth:
+            current_node.add("[dim]... (truncated)[/dim]")
+            return
+
+        try:
+            entries = sorted(current_dir.iterdir(), key=lambda p: (not p.is_dir(), p.name.lower()))
+        except Exception:
+            return
+
+        for entry in entries:
+            if entry.name in ignore_dirs or entry.name.startswith("."):
+                continue
+            if entry.is_dir():
+                sub_node = current_node.add(f"[bold #38bdf8]📁 {entry.name}/[/bold #38bdf8]")
+                _build_tree(entry, sub_node, depth + 1)
+            else:
+                current_node.add(f"[white]📄 {entry.name}[/white]")
+
+    _build_tree(path, tree, depth=1)
+    console.print(tree)
+    console.print()
+
+
+def print_how_to_run(
+    workspace_path: str | Path,
+    run_cmd: str | None = None,
+    test_cmd: str | None = None,
+    entry_point: str | None = None,
+) -> None:
+    """Render a prominent Rich banner showing how to run and test the project."""
+    path = Path(workspace_path)
+
+    # Auto-detect test command if not provided
+    if test_cmd is None:
+        if (path / "package.json").exists():
+            test_cmd = "npm test"
+        elif (path / "Cargo.toml").exists():
+            test_cmd = "cargo test"
+        elif (path / "go.mod").exists():
+            test_cmd = "go test ./..."
+        else:
+            test_cmd = "pytest"
+
+    # Auto-detect run command and entry point if not provided
+    if run_cmd is None:
+        if (path / "package.json").exists():
+            run_cmd = "npm start"
+            entry_point = entry_point or "index.js"
+        elif (path / "Cargo.toml").exists():
+            run_cmd = "cargo run"
+            entry_point = entry_point or "src/main.rs"
+        elif (path / "go.mod").exists():
+            run_cmd = "go run ."
+            entry_point = entry_point or "main.go"
+        elif (path / "src" / "main.py").exists():
+            run_cmd = "python -m src.main"
+            entry_point = entry_point or "src/main.py"
+        elif (path / "main.py").exists():
+            run_cmd = "python main.py"
+            entry_point = entry_point or "main.py"
+        elif (path / "app.py").exists():
+            run_cmd = "python app.py"
+            entry_point = entry_point or "app.py"
+        else:
+            run_cmd = f"python main.py"
+            entry_point = entry_point or "main.py"
+
+    content_lines = [
+        f"[bold]Workspace:[/bold]  [cyan]{path}[/cyan]",
+        f"[bold]Run:[/bold]        [green]{run_cmd}[/green]",
+        f"[bold]Test:[/bold]       [yellow]{test_cmd}[/yellow]",
+    ]
+    if entry_point:
+        content_lines.append(f"[bold]Entry:[/bold]      [magenta]{entry_point}[/magenta]")
+
+    panel = Panel(
+        "\n".join(content_lines),
+        title="[bold green]🚀 How to Run & Test[/bold green]",
+        title_align="left",
+        border_style="#22c55e",
+        padding=(1, 2),
+    )
     console.print(panel)
     console.print()

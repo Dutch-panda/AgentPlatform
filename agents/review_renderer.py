@@ -87,6 +87,17 @@ links: ["[[spec-{task_id}]]", "[[{task_id}-brief]]"]
             fence = calculate_code_fence(attempt.command + attempt.output)
             markdown_content += f"{fence}text\n$ {attempt.command}\n{attempt.output}\n{fence}\n"
 
+    token_usage = getattr(result, "token_usage", None)
+    if isinstance(token_usage, dict) and token_usage.get("total_tokens", 0) > 0:
+        from tools.token_analytics import calculate_token_cost
+
+        inp = token_usage.get("input_tokens", 0)
+        out = token_usage.get("output_tokens", 0)
+        tot = token_usage.get("total_tokens", inp + out)
+        mdl = token_usage.get("model")
+        _, cost_str = calculate_token_cost(inp, out, mdl)
+        markdown_content += f"\n## Token Usage & Efficiency\n- **Prompt Tokens:** {inp:,}\n- **Completion Tokens:** {out:,}\n- **Total Tokens:** {tot:,}\n- **Estimated Cost:** {cost_str}\n"
+
     return markdown_content
 
 

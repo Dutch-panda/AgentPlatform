@@ -29,6 +29,7 @@ from tools.ui import (
     print_phase_table,
     print_spec_summary,
     print_task_header,
+    print_token_summary_table,
     print_workspace_tree,
 )
 
@@ -129,9 +130,16 @@ async def run_task(
         ledger.save(record)
         brief = await NatashaRouter(model_name=model).coordinate_request(record.prompt, task_id, project_id=project)
         record.brief = brief
+        if getattr(brief, "token_usage", None):
+            record.token_usage["natasha"] = brief.token_usage
         ledger.save(record)
     brief = TaskBrief.model_validate(record.brief)
-    print_brief_summary(brief.target_lead, brief.research_questions)
+    print_brief_summary(
+        brief.target_lead,
+        brief.research_questions,
+        token_usage=getattr(brief, "token_usage", None),
+        model=model_override,
+    )
     objective = brief.objective
     if brief.research_questions:
         objective += '\n\nScope and questions:\n' + '\n'.join(f'- {item}' for item in brief.research_questions)
@@ -143,6 +151,8 @@ async def run_task(
                 ledger.save(record)
                 research = await OdinResearcher(model_name=model).conduct_research(task_id, objective, project_id=project)
                 record.research = research
+                if getattr(research, "token_usage", None):
+                    record.token_usage["odin"] = research.token_usage
                 ledger.save(record)
             research = ResearchReport.model_validate(record.research)
             design_context = format_design_context(objective, research)
@@ -152,6 +162,8 @@ async def run_task(
             record.status = 'ARCHITECTING'
             ledger.save(record)
             spec = await TaghiArchitect(model_name=model).create_specification(task_id, design_context, project_id=project)
+            if getattr(spec, "token_usage", None):
+                record.token_usage["taghi"] = spec.token_usage
         else:
             spec = fast_track_spec(task_id, objective, base_image=image_override, project_id=project)
         if image_override:
@@ -161,7 +173,12 @@ async def run_task(
         ledger.save(record)
 
     spec = TechnicalSpec.model_validate(record.specification)
-    print_spec_summary(spec.base_image, spec.phases)
+    print_spec_summary(
+        spec.base_image,
+        spec.phases,
+        token_usage=getattr(spec, "token_usage", None),
+        model=model_override,
+    )
     print_phase_table(spec.phases, completed_phases=getattr(checkpoint, "validated_phases", []))
     record.status = 'IMPLEMENTING'
     ledger.save(record)
@@ -171,12 +188,16 @@ async def run_task(
         ledger.save(record)
 
     effective_image = image_override or spec.base_image
-    return await MetiImplementer(model_name=model).execute_specification(
+    impl_res = await MetiImplementer(model_name=model).execute_specification(
         task_id, spec.architecture_overview, spec.phases,
         required_dependencies=spec.required_dependencies, project_id=project,
         checkpoint=checkpoint, checkpoint_callback=save_implementation, run_number=record.run_number,
         base_image=effective_image,
     )
+    if getattr(impl_res, "token_usage", None):
+        record.token_usage["meti"] = impl_res.token_usage
+        ledger.save(record)
+    return impl_res
 
 
 async def main() -> None:
@@ -216,6 +237,8 @@ async def main() -> None:
             record.error = None if result.status == 'success' else result.summary
             ledger.save(record)
             print_completion(task_id, result.status == 'success', result.summary)
+            if record.token_usage:
+                print_token_summary_table(record.token_usage, default_model=args.model)
             if result.status == 'success':
                 workspace_dir = record.project_id or record.task_id
                 workspace_path = Path("workspace") / workspace_dir

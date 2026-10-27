@@ -44,6 +44,7 @@ class MetiImplementer:
     ):
         self.vault_path = Path(vault_path)
         self.workspace_path = Path(workspace_path)
+        self.model_name = model_name
         self.code_reviews_dir = (
             Path(code_reviews_dir) if code_reviews_dir is not None else self.vault_path / "code-reviews"
         )
@@ -200,6 +201,16 @@ class MetiImplementer:
                 f"Prior validation history: {[item.to_dict() if hasattr(item, 'to_dict') else item for item in attempts]}\n"
             )
 
+        from tools.token_analytics import extract_usage
+
+        aggregated_usage = {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "total_tokens": 0,
+            "requests": 0,
+            "model": str(self.model_name),
+        }
+
         try:
             history = None
             while True:
@@ -218,6 +229,11 @@ class MetiImplementer:
                 )
                 with agent_status("meti", f"Phase [{current_phase_name}]: implementing and validating..."):
                     result = await self.agent.run(prompt, deps=state, message_history=history)
+                turn_usage = extract_usage(result, model_name=str(self.model_name))
+                aggregated_usage["input_tokens"] += turn_usage["input_tokens"]
+                aggregated_usage["output_tokens"] += turn_usage["output_tokens"]
+                aggregated_usage["total_tokens"] += turn_usage["total_tokens"]
+                aggregated_usage["requests"] += turn_usage["requests"]
                 implementation_result = result.output
 
                 if not ExecutionPolicy.should_trigger_recovery(state, phases, previous_attempts):
@@ -243,6 +259,8 @@ class MetiImplementer:
                 phases=phases,
                 model_result=implementation_result,
             )
+
+        implementation_result.token_usage = aggregated_usage
 
         # Write code review note to vault
         markdown_content = render_review_markdown(

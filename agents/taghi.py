@@ -32,6 +32,7 @@ class TaghiArchitect:
         self.agent = Agent(
             model_name,
             output_type=TechnicalSpec,
+            model_settings={"cache": True},
             system_prompt=(
                 "You are Taghi, Technical Design Lead. Verify that the task is designated for design/architecture. "
                 "Translate research reports into precise technical specifications and sequential execution phases for Meti. "

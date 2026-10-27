@@ -56,6 +56,7 @@ class MetiImplementer:
             model_name,
             output_type=ImplementationResult,
             deps_type=ExecutionState,
+            model_settings={"cache": True},
             system_prompt=(
                 "You are Meti, the Implementation Lead. You execute Taghi's phased technical specifications "
                 "inside a secure Docker container workspace. You have direct access to run shell and test commands "

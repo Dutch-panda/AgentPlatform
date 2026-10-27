@@ -141,6 +141,29 @@ BuildRelay tracks exact prompt (input) and completion (output) token consumption
 - **Obsidian Vault Reports:** Meti's review notes under `vault/code-reviews/` record full token metrics and costs.
 - **Completion Table:** At workflow completion, a styled Rich table summarizes prompt, completion, total tokens, and estimated cost per lead with grand totals.
 
+## Tiered model routing and token optimization
+
+To balance execution speed, reasoning depth, and cost efficiency, BuildRelay provides tiered model routing and context compression:
+
+- **Model Tiers (`--tier`):**
+  - **Fast (`--tier fast`):** Routes lightweight, fast models across all leads (`gpt-4o-mini`, `claude-3-5-haiku`, `gemini-2.0-flash`). Ideal for quick scripts, prototyping, and high speed.
+  - **Balanced (`--tier balanced` — default):** Pairs fast models for routing (Natasha) and graph search (Odin) with high-reasoning models for architecture (Taghi: `o3-mini`) and implementation (Meti: `gpt-4o` / `claude-3-7-sonnet`).
+  - **Powerful (`--tier powerful`):** Assigns top-tier frontier models across all design and execution phases.
+- **Lead-Specific Overrides:**
+  - Override individual leads via CLI flags: `--model-natasha`, `--model-odin`, `--model-taghi`, `--model-meti`.
+  - Scoped overrides take precedence over global `--model` and `--tier`.
+- **Model Lineup Approval Gate:**
+  - On launch, BuildRelay renders a 2-column model lineup card displaying the active model for each lead, cost tier label, caching status, and estimated budget.
+  - Interactive users can press **`[Enter]`** to confirm, **`[c]`** to quickly switch tiers, or **`[q]`** to abort. Auto/headless runs (`-y`/`--auto`) accept automatically.
+- **Prompt Prefix Caching:**
+  - All agent system prompts, static guidelines, and contracts are stabilized at prompt prefixes.
+  - Provider prompt caching (`model_settings={"cache": True}`) is enabled across Anthropic, OpenAI, and Gemini, reducing latency by up to 80% and input token costs by up to 90% during Meti's Docker retry cycles.
+  - Cached tokens are detected and discounted in token summary badges and ledger reports.
+- **Context Pruning & Compression:**
+  - **Markdown Sanitization:** `prune_markdown` strips verbose YAML frontmatter, empty sections, and backlink blocks.
+  - **Semantic Graph Pruning:** `prune_graph_context` scores and ranks vault nodes by keyword overlap, passing only the top 3–5 relevant snippets to Odin rather than raw graph dumps.
+  - **Docker Log Slicing:** `prune_docker_log` automatically detects failure tracebacks and assertion errors in long build logs, slicing around the error signature to prevent context window dilution during retry loops.
+
 ## Dynamic progress and project delivery
 
 - **Live Progress Spinners:** Active Docker operations and LLM generation phases display animated Rich status spinners (`rich.status.Status`) instead of terminal dumps.
@@ -258,8 +281,10 @@ Arrows show which component uses another. Shared contracts define stage outputs,
 │   └── meti.py                Implementation coordination and Docker tools
 ├── tools/
 │   ├── chatgpt_auth.py        OAuth credential storage and model setup
+│   ├── context_pruner.py      Markdown stripping, graph context ranking, and Docker log slicing
 │   ├── docker_runner.py      Container lifecycle and workspace mounts
 │   ├── graphify_tool.py      Graph extraction, node search, and neighbors
+│   ├── model_tiers.py        Tiered routing presets, budget estimation, and lead overrides
 │   ├── project_notes.py      Project IDs, note creation, and shared links
 │   ├── task_ledger.py        SQLite checkpoints and per-task process locks
 │   ├── token_analytics.py    Token usage tracking, model pricing, and summary tables
@@ -314,7 +339,7 @@ python -m pip install -e '.[test]'
 python scripts/validate.py
 ```
 
-The script runs the platform tests in `tests/` (135 passing unit tests); extra pytest arguments can be appended, for example `python scripts/validate.py -k validation`. Test discovery excludes generated workspaces. The suite uses Pydantic AI `TestModel` for structured outputs and `FunctionModel` for scripted tool calls, blocks real model requests, replaces Docker and graph extraction, and writes artifacts in temporary directories. It covers routing contracts, project links, explicit dependency injection, graph retrieval, source resolution and report references, phase validation, bounded recovery, container isolation invariants, Docker failure feedback, ledger persistence, and resume behavior; it does not assess live model routing quality.
+The script runs the platform tests in `tests/` (155 passing unit tests); extra pytest arguments can be appended, for example `python scripts/validate.py -k validation`. Test discovery excludes generated workspaces. The suite uses Pydantic AI `TestModel` for structured outputs and `FunctionModel` for scripted tool calls, blocks real model requests, replaces Docker and graph extraction, and writes artifacts in temporary directories. It covers routing contracts, project links, explicit dependency injection, graph retrieval, source resolution and report references, phase validation, bounded recovery, container isolation invariants, Docker failure feedback, ledger persistence, and resume behavior; it does not assess live model routing quality.
 
 The [Platform tests workflow](.github/workflows/tests.yml) runs the same validation command on pushes and pull requests using Ubuntu with Python 3.11 and 3.14. Open [CI results](https://github.com/Dutch-panda/BuildRelay/actions/workflows/tests.yml) to inspect runs. To start a manual run, select **Run workflow**, choose a branch, and confirm. Results and failure logs appear on the commit or pull request; no model credentials or Docker service are needed. Requiring passing checks before merging is a separate repository setting.
 

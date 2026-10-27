@@ -70,6 +70,7 @@ def calculate_token_cost(
     input_tokens: int,
     output_tokens: int,
     model: str | None = None,
+    cache_read_tokens: int = 0,
 ) -> tuple[float | None, str]:
     """Calculate estimated USD cost and return (numeric_cost_or_none, display_string)."""
     norm = normalize_model_name(model)
@@ -83,7 +84,13 @@ def calculate_token_cost(
     if not rates:
         return None, "--"
 
-    cost = (input_tokens * rates["input"]) + (output_tokens * rates["output"])
+    effective_cached = min(cache_read_tokens, input_tokens)
+    uncached_inputs = input_tokens - effective_cached
+    cache_discount = 0.10 if "claude" in norm else (0.25 if "gemini" in norm else 0.50)
+    cached_cost = effective_cached * rates["input"] * cache_discount
+    uncached_cost = uncached_inputs * rates["input"]
+    cost = uncached_cost + cached_cost + (output_tokens * rates["output"])
+
     if cost == 0.0:
         return 0.0, "$0.00"
     if cost < 0.001:
@@ -98,12 +105,16 @@ def extract_usage(result_or_usage: Any, model_name: str | None = None) -> dict[s
         out = result_or_usage.get("output_tokens") or result_or_usage.get("response_tokens") or 0
         tot = result_or_usage.get("total_tokens") or (inp + out)
         req = result_or_usage.get("requests") or 1
+        cache_read = result_or_usage.get("cache_read_tokens") or 0
+        cache_write = result_or_usage.get("cache_write_tokens") or 0
         model = result_or_usage.get("model") or model_name
         return {
             "input_tokens": int(inp),
             "output_tokens": int(out),
             "total_tokens": int(tot),
             "requests": int(req),
+            "cache_read_tokens": int(cache_read),
+            "cache_write_tokens": int(cache_write),
             "model": str(model) if model else None,
         }
 
@@ -118,12 +129,16 @@ def extract_usage(result_or_usage: Any, model_name: str | None = None) -> dict[s
     out = getattr(usage, "output_tokens", getattr(usage, "response_tokens", 0)) or 0
     tot = getattr(usage, "total_tokens", inp + out) or (inp + out)
     req = getattr(usage, "requests", 1) or 1
+    cache_read = getattr(usage, "cache_read_tokens", 0) or 0
+    cache_write = getattr(usage, "cache_write_tokens", 0) or 0
 
     return {
         "input_tokens": int(inp),
         "output_tokens": int(out),
         "total_tokens": int(tot),
         "requests": int(req),
+        "cache_read_tokens": int(cache_read),
+        "cache_write_tokens": int(cache_write),
         "model": str(model_name) if model_name else None,
     }
 
@@ -133,6 +148,8 @@ def format_token_badge(usage: dict[str, Any], model: str | None = None) -> str:
     tot = usage.get("total_tokens", 0)
     inp = usage.get("input_tokens", 0)
     out = usage.get("output_tokens", 0)
+    cache_read = usage.get("cache_read_tokens", 0)
     mdl = usage.get("model") or model
-    _, cost_str = calculate_token_cost(inp, out, mdl)
-    return f"{tot:,} tokens (~{cost_str})"
+    _, cost_str = calculate_token_cost(inp, out, mdl, cache_read_tokens=cache_read)
+    cache_tag = f" ⚡{cache_read} cached" if cache_read > 0 else ""
+    return f"{tot:,} tokens{cache_tag} (~{cost_str})"

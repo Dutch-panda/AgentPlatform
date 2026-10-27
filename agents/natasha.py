@@ -32,6 +32,7 @@ class NatashaRouter:
         self.agent = Agent(
             model_name,
             output_type=TaskBrief,
+            model_settings={"cache": True},
             system_prompt=(
                 "You are Natasha, the master coordinator and router of an elite multi-agent engineering team. "
                 "Analyze the user's request, break it down into a structured task brief, "

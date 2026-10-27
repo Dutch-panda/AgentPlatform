@@ -153,13 +153,16 @@ class ExecutionPolicy:
         max_attempts: int = MAX_VALIDATION_ATTEMPTS,
     ) -> str:
         """Construct the repair prompt containing the failure logs and remaining retry budget."""
+        from tools.context_pruner import prune_docker_log
+
         last = state.validation_attempts[-1]
         remaining_budget = max_attempts - last.attempt
+        pruned_logs = prune_docker_log(last.output)
         return (
             f"Phase {last.phase_name} is still unvalidated after attempt {last.attempt}. "
             f"There are {remaining_budget} validation attempts remaining. "
             "Inspect these logs, repair the implementation, and run the same phase's exact validation command.\n"
-            f"{last.output}"
+            f"{pruned_logs}"
         )
 
     @staticmethod

@@ -5,7 +5,9 @@ import re
 from datetime import datetime
 from pathlib import Path
 from dotenv import load_dotenv
+from pydantic_ai.models import Model
 from tools.chatgpt_auth import get_chatgpt_model
+from tools.model_tiers import resolve_pipeline_models
 from tools.project_notes import validate_project_id
 from tools.task_ledger import TaskLedger, TaskRecord, validate_task_id
 from contracts import (
@@ -26,12 +28,14 @@ from tools.ui import (
     print_brief_summary,
     print_completion,
     print_how_to_run,
+    print_model_lineup_card,
     print_phase_table,
     print_spec_summary,
     print_task_header,
     print_token_summary_table,
     print_workspace_tree,
     prompt_alignment_gate,
+    prompt_model_approval_gate,
     prompt_step_gate,
 )
 
@@ -104,6 +108,8 @@ async def run_task(
     image_override: str | None = None,
     auto: bool = False,
     step: bool = False,
+    tier: str | None = None,
+    lead_overrides: dict[str, Any] | None = None,
 ) -> ImplementationResult:
     # Reject unreadable stage checkpoints before authentication or external work.
     if record.brief is not None:
@@ -122,7 +128,34 @@ async def run_task(
     if checkpoint.in_flight_command:
         print_agent('resume', 'Interrupted command outcome is unknown: ' + checkpoint.in_flight_command)
         print_agent('resume', 'Inspect its side effects; the unfinished phase may execute again.')
-    model = await get_chatgpt_model(model_name=model_override)
+
+    # Resolve tiered pipeline models
+    pipeline_models = resolve_pipeline_models(
+        global_model=model_override,
+        tier=tier,
+        overrides=lead_overrides,
+    )
+
+    # Model usage and cost approval gate (before execution starts on fresh runs)
+    if record.brief is None and not auto:
+        gate_action, updated_models = prompt_model_approval_gate(
+            pipeline_models, tier=tier or "balanced", auto=auto
+        )
+        if gate_action == "quit":
+            print_agent("orchestrator", "Task execution cancelled by user at model approval gate.")
+            sys.exit(0)
+        if updated_models:
+            pipeline_models = updated_models
+
+    model_cache: dict[str, Any] = {}
+
+    async def resolve_agent_model(model_spec: Any) -> Any:
+        if isinstance(model_spec, Model) or not isinstance(model_spec, str):
+            return model_spec
+        if model_spec not in model_cache:
+            model_cache[model_spec] = await get_chatgpt_model(model_name=model_spec)
+        return model_cache[model_spec]
+
     project = record.project_id
     task_id = record.task_id
     record.run_number += 1
@@ -132,9 +165,11 @@ async def run_task(
     if record.brief is None:
         record.status = 'PENDING'
         ledger.save(record)
-        brief = await NatashaRouter(model_name=model).coordinate_request(record.prompt, task_id, project_id=project)
+        natasha_model = await resolve_agent_model(pipeline_models["natasha"])
+        brief = await NatashaRouter(model_name=natasha_model).coordinate_request(record.prompt, task_id, project_id=project)
         record.brief = brief
         if getattr(brief, "token_usage", None):
+            brief.token_usage["model"] = str(pipeline_models["natasha"])
             record.token_usage["natasha"] = brief.token_usage
         ledger.save(record)
     brief = TaskBrief.model_validate(record.brief)
@@ -147,10 +182,12 @@ async def run_task(
                 print_agent("orchestrator", "Task execution cancelled by user.")
                 sys.exit(0)
             elif action == "edit" and feedback:
-                brief = await NatashaRouter(model_name=model).realign_intent(brief, feedback, project_id=project)
+                natasha_model = await resolve_agent_model(pipeline_models["natasha"])
+                brief = await NatashaRouter(model_name=natasha_model).realign_intent(brief, feedback, project_id=project)
                 record.prompt = f"{record.prompt} (Clarification: {feedback})"
                 record.brief = brief
                 if getattr(brief, "token_usage", None):
+                    brief.token_usage["model"] = str(pipeline_models["natasha"])
                     record.token_usage["natasha"] = brief.token_usage
                 ledger.save(record)
             else:
@@ -160,7 +197,7 @@ async def run_task(
         brief.target_lead,
         brief.research_questions,
         token_usage=getattr(brief, "token_usage", None),
-        model=model_override,
+        model=str(pipeline_models["natasha"]),
     )
     objective = brief.objective
     if brief.research_questions:
@@ -180,7 +217,7 @@ async def run_task(
                 print_agent("orchestrator", "Task execution cancelled by user.")
                 sys.exit(0)
             elif gate_action == "pivot" and gate_feedback:
-                brief = await NatashaRouter(model_name=model).realign_intent(brief, gate_feedback, project_id=project)
+                brief = await NatashaRouter(model_name=natasha_model).realign_intent(brief, gate_feedback, project_id=project)
                 record.prompt = f"{record.prompt} (Clarification: {gate_feedback})"
                 record.brief = brief
                 record.specification = None
@@ -190,9 +227,11 @@ async def run_task(
             if record.research is None:
                 record.status = 'RESEARCHING'
                 ledger.save(record)
-                research = await OdinResearcher(model_name=model).conduct_research(task_id, objective, project_id=project)
+                odin_model = await resolve_agent_model(pipeline_models["odin"])
+                research = await OdinResearcher(model_name=odin_model).conduct_research(task_id, objective, project_id=project)
                 record.research = research
                 if getattr(research, "token_usage", None):
+                    research.token_usage["model"] = str(pipeline_models["odin"])
                     record.token_usage["odin"] = research.token_usage
                 ledger.save(record)
             research = ResearchReport.model_validate(record.research)
@@ -202,8 +241,10 @@ async def run_task(
         if brief.target_lead in ('odin', 'taghi'):
             record.status = 'ARCHITECTING'
             ledger.save(record)
-            spec = await TaghiArchitect(model_name=model).create_specification(task_id, design_context, project_id=project)
+            taghi_model = await resolve_agent_model(pipeline_models["taghi"])
+            spec = await TaghiArchitect(model_name=taghi_model).create_specification(task_id, design_context, project_id=project)
             if getattr(spec, "token_usage", None):
+                spec.token_usage["model"] = str(pipeline_models["taghi"])
                 record.token_usage["taghi"] = spec.token_usage
         else:
             spec = fast_track_spec(task_id, objective, base_image=image_override, project_id=project)
@@ -218,7 +259,7 @@ async def run_task(
         spec.base_image,
         spec.phases,
         token_usage=getattr(spec, "token_usage", None),
-        model=model_override,
+        model=str(pipeline_models["taghi"]),
     )
     print_phase_table(spec.phases, completed_phases=getattr(checkpoint, "validated_phases", []))
 
@@ -234,14 +275,15 @@ async def run_task(
             print_agent("orchestrator", "Task execution cancelled by user.")
             sys.exit(0)
         elif gate_action == "pivot" and gate_feedback:
-            brief = await NatashaRouter(model_name=model).realign_intent(brief, gate_feedback, project_id=project)
+            brief = await NatashaRouter(model_name=natasha_model).realign_intent(brief, gate_feedback, project_id=project)
             record.prompt = f"{record.prompt} (Clarification: {gate_feedback})"
             record.brief = brief
             record.specification = None
             record.implementation = ImplementationCheckpoint()
             ledger.save(record)
             # Re-generate specification
-            spec = await TaghiArchitect(model_name=model).create_specification(
+            taghi_model = await resolve_agent_model(pipeline_models["taghi"])
+            spec = await TaghiArchitect(model_name=taghi_model).create_specification(
                 task_id, format_design_context(brief.objective, None), project_id=project
             )
             record.specification = spec
@@ -255,13 +297,15 @@ async def run_task(
         ledger.save(record)
 
     effective_image = image_override or spec.base_image
-    impl_res = await MetiImplementer(model_name=model).execute_specification(
+    meti_model = await resolve_agent_model(pipeline_models["meti"])
+    impl_res = await MetiImplementer(model_name=meti_model).execute_specification(
         task_id, spec.architecture_overview, spec.phases,
         required_dependencies=spec.required_dependencies, project_id=project,
         checkpoint=checkpoint, checkpoint_callback=save_implementation, run_number=record.run_number,
         base_image=effective_image,
     )
     if getattr(impl_res, "token_usage", None):
+        impl_res.token_usage["model"] = str(pipeline_models["meti"])
         record.token_usage["meti"] = impl_res.token_usage
         ledger.save(record)
     return impl_res
@@ -273,6 +317,11 @@ async def main() -> None:
     parser.add_argument('--project', type=validate_project_id, help='Parent project ID')
     parser.add_argument('--resume', type=validate_task_id, metavar='TASK_ID', help='Resume a saved local task')
     parser.add_argument('--model', help='Model identifier (e.g. openai:gpt-4o, anthropic:claude-3-5-sonnet-latest)')
+    parser.add_argument('--tier', choices=['fast', 'balanced', 'powerful'], help='Model tier preset (fast, balanced, powerful)')
+    parser.add_argument('--model-natasha', help='Model override for Natasha (Coordinator)')
+    parser.add_argument('--model-odin', help='Model override for Odin (Researcher)')
+    parser.add_argument('--model-taghi', help='Model override for Taghi (Architect)')
+    parser.add_argument('--model-meti', help='Model override for Meti (Implementer)')
     parser.add_argument('--image', help='Docker base image override (e.g. python:3.11-slim)')
     parser.add_argument('-y', '--yes', '--auto', dest='auto', action='store_true', help='Headless mode; accept defaults without interactive prompts')
     parser.add_argument('--step', action='store_true', help='Interactive step gates between each agent lead')
@@ -281,6 +330,12 @@ async def main() -> None:
         parser.error('--resume cannot be combined with a prompt or --project; saved values are reused')
     if not args.resume and (args.prompt is None or not args.prompt.strip()):
         parser.error('Provide a non-empty prompt or --resume TASK_ID')
+    lead_overrides = {
+        "natasha": args.model_natasha,
+        "odin": args.model_odin,
+        "taghi": args.model_taghi,
+        "meti": args.model_meti,
+    }
     try:
         ledger = TaskLedger()
         task_id = args.resume or task_id_for(args.prompt.strip(), ledger=ledger)
@@ -302,6 +357,8 @@ async def main() -> None:
                     image_override=args.image,
                     auto=args.auto,
                     step=args.step,
+                    tier=args.tier,
+                    lead_overrides=lead_overrides,
                 )
             except (Exception, KeyboardInterrupt, asyncio.CancelledError) as error:
                 record.status = 'FAILED'

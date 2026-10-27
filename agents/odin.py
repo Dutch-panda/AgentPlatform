@@ -42,6 +42,7 @@ class OdinResearcher:
             model_name,
             output_type=ResearchReport,
             deps_type=ResearchContext,
+            model_settings={"cache": True},
             system_prompt=(
                 "You are Odin, the Research Lead. You have access to vault graph tools. "
                 "Use them to query related concepts and their relationships before writing your final research report. "
@@ -70,7 +71,9 @@ class OdinResearcher:
         # Double-check task assignment from vault brief if needed
         graph_context = await asyncio.to_thread(self.graph_manager.query_nodes, task_id)
         context = ResearchContext(retrieved_nodes=list(graph_context))
-        prompt = f"Task ID: {task_id}\n{project.prompt}Objective: {objective}\nVault Context: {graph_context}"
+        from tools.context_pruner import prune_graph_context
+        pruned_graph = prune_graph_context(objective, graph_context, max_items=5)
+        prompt = f"Task ID: {task_id}\n{project.prompt}Objective: {objective}\nVault Context:\n{pruned_graph}"
         
         result = await self.agent.run(prompt, deps=context)
         report = result.output

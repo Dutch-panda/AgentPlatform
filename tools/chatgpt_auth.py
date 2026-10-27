@@ -39,6 +39,15 @@ class FileCredentialSource(OpenAIChatGPTCredentialSource):
                 temporary_path.unlink(missing_ok=True)
 
 
+def is_chatgpt_oauth_available() -> bool:
+    """Check if ChatGPT OAuth credentials file exists and has content."""
+    project_dir = Path(__file__).resolve().parent.parent
+    auth_path = Path(os.environ.get("CHATGPT_AUTH_FILE", ".env.chatgpt-auth.json")).expanduser()
+    if not auth_path.is_absolute():
+        auth_path = project_dir / auth_path
+    return auth_path.is_file() and auth_path.stat().st_size > 10
+
+
 def resolve_model_name(name: str) -> str:
     """Normalize model names by adding appropriate provider prefix if missing."""
     if ":" in name:
@@ -62,21 +71,36 @@ async def get_model(model_name: str | None = None) -> Model:
     4. ChatGPT OAuth sign-in flow (fallback)
     """
     model_override = model_name or os.environ.get("LLM_MODEL") or os.environ.get("MODEL_NAME")
-    if model_override:
-        return infer_model(resolve_model_name(model_override))
+    resolved_name = resolve_model_name(model_override) if model_override else None
 
-    if os.environ.get("OPENAI_API_KEY") and not os.environ.get("USE_CHATGPT_OAUTH"):
-        openai_model = os.environ.get("OPENAI_MODEL", "gpt-4o")
-        return infer_model(resolve_model_name(openai_model if ":" in openai_model else f"openai:{openai_model}"))
+    # Check non-OpenAI or local/test models first
+    if resolved_name:
+        lower = resolved_name.lower()
+        if lower.startswith(("anthropic:", "google:", "gemini:", "ollama:", "local:", "test")):
+            return infer_model(resolved_name)
+        if lower == "test" or lower.startswith("test:"):
+            return infer_model("test")
 
-    if os.environ.get("ANTHROPIC_API_KEY"):
-        anthropic_model = os.environ.get("ANTHROPIC_MODEL", "claude-3-5-sonnet-latest")
-        return infer_model(resolve_model_name(anthropic_model if ":" in anthropic_model else f"anthropic:{anthropic_model}"))
+        if lower.startswith("openai:"):
+            # If direct API key is available, use standard infer_model
+            if os.environ.get("OPENAI_API_KEY") and not os.environ.get("USE_CHATGPT_OAUTH"):
+                return infer_model(resolved_name)
+            # If no OPENAI_API_KEY, fall through to ChatGPT OAuth provider using the requested OpenAI model!
 
-    if os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"):
-        gemini_model = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
-        return infer_model(resolve_model_name(gemini_model if ":" in gemini_model else f"google:{gemini_model}"))
+    if not model_name:
+        if os.environ.get("OPENAI_API_KEY") and not os.environ.get("USE_CHATGPT_OAUTH"):
+            openai_model = os.environ.get("OPENAI_MODEL", "gpt-4o")
+            return infer_model(resolve_model_name(openai_model if ":" in openai_model else f"openai:{openai_model}"))
 
+        if os.environ.get("ANTHROPIC_API_KEY"):
+            anthropic_model = os.environ.get("ANTHROPIC_MODEL", "claude-3-5-sonnet-latest")
+            return infer_model(resolve_model_name(anthropic_model if ":" in anthropic_model else f"anthropic:{anthropic_model}"))
+
+        if os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"):
+            gemini_model = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
+            return infer_model(resolve_model_name(gemini_model if ":" in gemini_model else f"google:{gemini_model}"))
+
+    # Fallback to ChatGPT OAuth provider
     project_dir = Path(__file__).resolve().parent.parent
     auth_path = Path(os.environ.get("CHATGPT_AUTH_FILE", ".env.chatgpt-auth.json")).expanduser()
     if not auth_path.is_absolute():
@@ -92,8 +116,13 @@ async def get_model(model_name: str | None = None) -> Model:
         print("Open this URL in your browser and sign in with ChatGPT:")
         print(flow.authorization_url(extra_params={"prompt": "consent"}))
         await source.save(await flow.exchange_code_from_callback())
+
+    raw_model = resolved_name or os.environ.get("OPENAI_MODEL", "gpt-4o")
+    if ":" in raw_model:
+        raw_model = raw_model.split(":", 1)[1]
+
     return OpenAIResponsesModel(
-        os.environ.get("OPENAI_MODEL", "gpt-6.1-sol"),
+        raw_model,
         provider=OpenAIChatGPTProvider(credential_source=source),
     )
 

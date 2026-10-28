@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><title>Terminal example · BuildRelay</title><meta name="description" content="BuildRelay guides: plan, build, check, and resume development tasks."><link rel="icon" href="brand/logo.svg" type="image/svg+xml"><link rel="stylesheet" href="site.css"><script src="site.js" defer></script><link rel="canonical" href="https://dutch-panda.github.io/BuildRelay/example.html"></head>
+<body><a class="skip" href="#content">Skip to content</a><header><a class="brand" href="index.html"><img src="brand/logo.svg" alt="" width="32" height="32">BuildRelay <span>Docs</span></a><a href="https://github.com/Dutch-panda/BuildRelay">GitHub ↗</a></header><div class="layout"><aside class="sidebar"><details open><summary>Documentation</summary><nav aria-label="Documentation"><p>GET STARTED & BUILD</p><a href="index.html">Introduction</a><a href="example.html" aria-current="page">Terminal example</a><a href="quickstart.html">Quick start</a><a href="workflow.html">Workflow &amp; alignment</a><a href="configuration.html">Models &amp; configuration</a><a href="execution.html">Execution &amp; web research</a><a href="projects.html">Projects &amp; memory</a><a href="resume.html">Resume a task</a><a href="architecture.html">Architecture</a><a href="testing.html">Testing &amp; integration</a><a href="limitations.html">Limits &amp; security</a><a href="troubleshooting.html">Troubleshooting</a></nav></details></aside><main id="content"><div class="breadcrumb">BuildRelay / Terminal example</div><h1>A real terminal capture</h1><p class="lead">Inspect the CLI and its offline tests before running a model-powered task.</p><div class="notice"><strong>What this capture demonstrates</strong><p>This is actual command output recorded locally on 28 October 2026. It shows CLI capabilities and deterministic platform checks. It is not an AI implementation run, an integration test, or a benchmark.</p></div><img class="diagram" src="examples/terminal-preview.svg" alt="Excerpt of actual CLI help and offline test output; full transcript follows."><h2 id="recorded-output">Recorded output</h2><p>No animation or simulated success messages. <a href="examples/terminal-session.txt">Open the full plain-text transcript</a>.</p><pre class="capture"><code>BuildRelay — actual local CLI and offline test capture
+Recorded: 2026-10-28
+This is not an AI implementation run. No live model, Docker, or Graphify integration was exercised.
+
+$ python main.py --help
+usage: main.py [-h] [--config] [--project PROJECT] [--resume TASK_ID]
+               [--model MODEL] [--tier {fast,balanced,powerful}]
+               [--model-natasha MODEL_NATASHA] [--model-odin MODEL_ODIN]
+               [--model-taghi MODEL_TAGHI] [--model-meti MODEL_METI]
+               [--image IMAGE] [-y] [--step]
+               [prompt]
+
+BuildRelay: plan, build, check, and resume AI development tasks
+
+positional arguments:
+  prompt                Task description or prompt
+
+options:
+  -h, --help            show this help message and exit
+  --config              Launch interactive onboarding &amp; configuration wizard
+  --project PROJECT     Parent project ID
+  --resume TASK_ID      Resume a saved local task
+  --model MODEL         Model identifier (e.g. openai:gpt-4o,
+                        anthropic:claude-3-5-sonnet-latest)
+  --tier {fast,balanced,powerful}
+                        Model tier preset (fast, balanced, powerful)
+  --model-natasha MODEL_NATASHA
+                        Model override for Natasha (Coordinator)
+  --model-odin MODEL_ODIN
+                        Model override for Odin (Researcher)
+  --model-taghi MODEL_TAGHI
+                        Model override for Taghi (Architect)
+  --model-meti MODEL_METI
+                        Model override for Meti (Implementer)
+  --image IMAGE         Docker base image override (e.g. python:3.11-slim)
+  -y, --yes, --auto     Headless mode; accept defaults without interactive
+                        prompts
+  --step                Interactive step gates between each agent lead
+
+Exit status: 0
+
+$ python scripts/validate.py -m &quot;not integration&quot; --disable-warnings
+........................................................................ [ 38%]
+................................................................ [ 72%]
+....................................................                     [100%]
+188 passed, 8 deselected, 1 warning, 8 subtests passed in 3.84s
+
+Exit status: 0
+</code></pre><h2 id="try-a-development-task">Try a development task</h2><p>After <a href="quickstart.html">setup</a>, use this small task as a reproducible demo prompt. The following is a suggested command, not output from the capture above.</p><pre><code>python main.py "Build a Python CSV validator that reports missing required columns and invalid numeric amounts. Include valid and invalid fixtures, automated tests, and a README with run commands." --project csv-demo --image python:3.11-slim --step</code></pre><p>Inspect the plan, generated files, and phase results. Keep provider sign-in and configuration outside any screen recording. Only demonstrate resume with a task that was actually interrupted or failed.</p><footer>Early-stage developer tool · Review generated code and validation results.<br><a href="https://github.com/Dutch-panda/BuildRelay/blob/main/README.md">Source guide on GitHub</a></footer></main><aside class="toc"><nav aria-label="On this page"><p>ON THIS PAGE</p><a href="#recorded-output">Recorded output</a><a href="#try-a-development-task">Try a development task</a></nav></aside></div></body></html>

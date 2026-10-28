@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><title>Architecture · BuildRelay</title><meta name="description" content="BuildRelay guides: plan, build, check, and resume development tasks."><link rel="icon" href="brand/logo.svg" type="image/svg+xml"><link rel="stylesheet" href="site.css"><script src="site.js" defer></script><link rel="canonical" href="https://dutch-panda.github.io/BuildRelay/architecture.html"></head>
+<body><a class="skip" href="#content">Skip to content</a><header><a class="brand" href="index.html"><img src="brand/logo.svg" alt="" width="32" height="32">BuildRelay <span>Docs</span></a><a href="https://github.com/Dutch-panda/BuildRelay">GitHub ↗</a></header><div class="layout"><aside class="sidebar"><details open><summary>Documentation</summary><nav aria-label="Documentation"><p>GET STARTED & BUILD</p><a href="index.html">Introduction</a><a href="example.html">Terminal example</a><a href="quickstart.html">Quick start</a><a href="workflow.html">Workflow &amp; alignment</a><a href="configuration.html">Models &amp; configuration</a><a href="execution.html">Execution &amp; web research</a><a href="projects.html">Projects &amp; memory</a><a href="resume.html">Resume a task</a><a href="architecture.html" aria-current="page">Architecture</a><a href="testing.html">Testing &amp; integration</a><a href="limitations.html">Limits &amp; security</a><a href="troubleshooting.html">Troubleshooting</a></nav></details></aside><main id="content"><div class="breadcrumb">BuildRelay / Architecture</div><h1>Architecture</h1><h2 id="component-connections">Component connections</h2>
+<img src="diagrams/components.svg" alt="Main coordinates model setup, agents, and the task ledger. Agents use vault tools, shared contracts, and Meti’s Docker runner." width="760">
+<p>Arrows show which component uses another. Shared contracts define stage outputs, handoffs, and checkpoints used by orchestration, agents, and the ledger. Vault tools support graph lookup and project-note links; each agent saves its own stage artifacts.</p>
+<h2 id="repository-map">Repository map</h2>
+<pre><code class="language-text">.
+├── main.py                    CLI, task IDs, routing, and orchestration
+├── contracts/
+│   └── __init__.py            Shared typed checkpoints, stage outputs, and handoff contracts
+├── agents/
+│   ├── natasha.py             Structured briefs and routing
+│   ├── odin.py                Research reports
+│   ├── taghi.py               Specifications and execution phases
+│   ├── execution_policy.py    Phase validation ordering, retry budgets, and recovery policy
+│   ├── review_renderer.py     Markdown code review report rendering
+│   └── meti.py                Implementation coordination and Docker tools
+├── tools/
+│   ├── chatgpt_auth.py        OAuth credential storage and model setup
+│   ├── context_pruner.py      Markdown stripping, graph context ranking, and Docker log slicing
+│   ├── docker_runner.py      Container lifecycle and workspace mounts
+│   ├── graphify_tool.py      Graph extraction, node search, and neighbors
+│   ├── onboarding.py         Interactive provider setup and local .env persistence
+│   ├── web_search.py         Search results, URL checks, page helper, and registry lookup
+│   ├── model_tiers.py        Tiered routing presets, budget estimation, and lead overrides
+│   ├── project_notes.py      Project IDs, note creation, and shared links
+│   ├── task_ledger.py        SQLite checkpoints and per-task process locks
+│   ├── token_analytics.py    Token usage tracking, model pricing, and summary tables
+│   ├── ui.py                  Terminal styling, agent color badges, panels, and phase tables
+│   └── vault_infra.py        Safe Markdown writing, graph tool wiring, and graph updates
+├── .github/workflows/tests.yml  Automated platform tests
+├── tests/                    Deterministic platform tests
+├── scripts/validate.py        Local test runner
+├── docs/index.html           GitHub Pages presentation
+├── pyproject.toml            Package metadata and dependencies
+├── vault/                    Local Markdown knowledge base
+└── workspace/                Generated task workspaces
+</code></pre>
+<h2 id="development-and-documentation">Development and documentation</h2>
+<p>The installed distribution provides the console script entry point <code>buildrelay</code> (e.g. <code>buildrelay &quot;prompt&quot;</code> or <code>buildrelay config</code>), or you can run directly from the checkout with <code>python main.py</code>. Runtime dependencies and Python requirements are declared in <a href="https://github.com/Dutch-panda/BuildRelay/blob/main/pyproject.toml">pyproject.toml</a>; dependency versions are lower bounds rather than a locked environment.</p>
+<p>The agent classes can also be called directly with a <code>model_name</code> (model string or Pydantic AI model object) and a <code>vault_path</code>. Agents support explicit dependency injection: <code>graph_manager</code>, custom artifact storage directories (<code>tasks_dir</code>, <code>research_dir</code>, <code>specs_dir</code>, <code>code_reviews_dir</code>), and <code>MetiImplementer</code> additionally accepts custom <code>sandbox</code> runners (e.g. <code>DockerSandboxRunner</code> or mock test runners). Constructors defer Docker connections and directory creation until operations actually require them. Programmatic Meti calls can supply <code>checkpoint</code>, <code>checkpoint_callback</code>, and a new <code>run_number</code> to persist and restore implementation progress; the CLI connects these to the ledger automatically. The CLI resolves a model per lead from provider tier presets and overrides. Collaborator injection and custom artifact-directory options are programmatic interfaces, not CLI flags.</p>
+<h3 id="website-documentation">Website documentation</h3>
+<p>The GitHub Pages site in <code>docs/</code> provides an introduction, terminal example, and focused technical guides with persistent navigation. Technical guide content is generated from this README; edit the README first, then rebuild and commit the generated pages:</p>
+<pre><code class="language-bash">python scripts/build_docs.py
+</code></pre>
+<p>The builder uses <code>markdown-it-py</code>, installed with the existing Rich dependency. Site styling and mobile navigation live in <code>docs/site.css</code> and <code>docs/site.js</code>; the introduction and terminal example templates live in the builder. The captured output in <code>docs/examples/terminal-session.txt</code> is a dated CLI/offline-test run, not a model-powered implementation demo. Rebuilding the site does not rerun that capture. Open <code>docs/index.html</code> locally to review, or serve <code>docs/</code> with a local static server. GitHub Pages serves the committed output without a new documentation service.</p>
+<footer>Early-stage developer tool · Review generated code and validation results.<br><a href="https://github.com/Dutch-panda/BuildRelay/blob/main/README.md">Source guide on GitHub</a></footer></main><aside class="toc"><nav aria-label="On this page"><p>ON THIS PAGE</p><a href="#component-connections">Component connections</a><a href="#repository-map">Repository map</a><a href="#development-and-documentation">Development and documentation</a></nav></aside></div></body></html>

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><title>Workflow &amp; alignment · BuildRelay</title><meta name="description" content="BuildRelay guides: plan, build, check, and resume development tasks."><link rel="icon" href="brand/logo.svg" type="image/svg+xml"><link rel="stylesheet" href="site.css"><script src="site.js" defer></script><link rel="canonical" href="https://dutch-panda.github.io/BuildRelay/workflow.html"></head>
+<body><a class="skip" href="#content">Skip to content</a><header><a class="brand" href="index.html"><img src="brand/logo.svg" alt="" width="32" height="32">BuildRelay <span>Docs</span></a><a href="https://github.com/Dutch-panda/BuildRelay">GitHub ↗</a></header><div class="layout"><aside class="sidebar"><details open><summary>Documentation</summary><nav aria-label="Documentation"><p>GET STARTED & BUILD</p><a href="index.html">Introduction</a><a href="example.html">Terminal example</a><a href="quickstart.html">Quick start</a><a href="workflow.html" aria-current="page">Workflow &amp; alignment</a><a href="configuration.html">Models &amp; configuration</a><a href="execution.html">Execution &amp; web research</a><a href="projects.html">Projects &amp; memory</a><a href="resume.html">Resume a task</a><a href="architecture.html">Architecture</a><a href="testing.html">Testing &amp; integration</a><a href="limitations.html">Limits &amp; security</a><a href="troubleshooting.html">Troubleshooting</a></nav></details></aside><main id="content"><div class="breadcrumb">BuildRelay / Workflow &amp; alignment</div><h1>Workflow &amp; alignment</h1><h2 id="how-the-workflow-runs">How the workflow runs</h2>
+<img src="diagrams/workflow.svg" alt="Natasha routes requests through research, design, or direct implementation, ending with Meti and validation." width="760">
+<ul>
+<li><strong>Natasha — coordinator:</strong> produces a typed task brief, a 5-sentence intent alignment brief, and chooses the next lead. Prompts with a low-friction clarification wizard for ambiguous requirements, supports mid-way intent pivots, queries existing vault connections, and can look up official library names online.</li>
+<li><strong>Odin — researcher:</strong> queries vault graph metadata and external web documentation / package registries (PyPI, npm) to produce technical findings and recommended stacks. Research notes record resolved vault notes and external search-result URLs. URL checks reject selected local hostnames and literal private IP addresses; Odin has a three-call search budget per research invocation.</li>
+<li><strong>Taghi — architect:</strong> produces an architecture overview, dependencies, and ordered execution phases with explicit validation commands. Phases are constrained to actionable sandbox validation; conditional gates or unprovided external credentials are documented in architecture overview notes rather than active execution phases.</li>
+<li><strong>Meti — implementer:</strong> writes code through Docker commands with live progress spinners and validates phases in order. Generates a workspace <code>README.md</code> with run/test instructions, logs execution details to <code>.state/task.log</code>, and renders a file tree and <code>How to Run &amp; Test</code> banner. A reported success is downgraded to failure if any phase remains unvalidated.</li>
+</ul>
+<p>Agents run sequentially along the selected route. Research requests continue through design and implementation; design requests continue through implementation.</p>
+<h2 id="interactive-alignment-and-execution-modes">Interactive alignment and execution modes</h2>
+<p>To eliminate early misunderstandings and prevent wasted model calls, BuildRelay provides an interactive alignment gate:</p>
+<ol>
+<li><strong>Natasha's 5-Sentence Intent Brief:</strong>
+<ul>
+<li><strong>Goal:</strong> Exactly what is being built.</li>
+<li><strong>Features:</strong> Key functionality in scope.</li>
+<li><strong>Stack:</strong> Runtime, frameworks, and base Docker image.</li>
+<li><strong>Exclusions:</strong> Out-of-scope or deferred requirements.</li>
+<li><strong>Next Steps:</strong> Target lead and first deliverable.</li>
+</ul>
+</li>
+<li><strong>Smart Clarification Wizard:</strong>
+<ul>
+<li>If technical ambiguity is detected, Natasha presents 1–2 targeted multiple-choice questions with preselected defaults.</li>
+<li>Pressing <strong><code>[Enter]</code></strong> immediately confirms all recommended defaults with zero friction.</li>
+<li>Pressing <strong><code>[e]</code></strong> allows typing a custom clarification or pivoting intent.</li>
+</ul>
+</li>
+<li><strong>Execution Flags:</strong>
+<ul>
+<li><strong>Default interactive:</strong> Runs the alignment gate before initiating research or design.</li>
+<li><strong>Headless mode (<code>-y</code>, <code>--yes</code>, <code>--auto</code>):</strong> Automatically accepts recommended defaults without terminal prompts; ideal for scripting and CI.</li>
+<li><strong>Step-by-step mode (<code>--step</code>):</strong> Prompts for confirmation before handing off to each lead (Natasha → Odin/Taghi → Meti). If the user pivots during a step gate, downstream checkpoints in <code>.state/tasks.db</code> are safely rolled back and re-routed.</li>
+</ul>
+</li>
+</ol>
+<footer>Early-stage developer tool · Review generated code and validation results.<br><a href="https://github.com/Dutch-panda/BuildRelay/blob/main/README.md">Source guide on GitHub</a></footer></main><aside class="toc"><nav aria-label="On this page"><p>ON THIS PAGE</p><a href="#how-the-workflow-runs">How the workflow runs</a><a href="#interactive-alignment-and-execution-modes">Interactive alignment and execution modes</a></nav></aside></div></body></html>

@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><title>Models &amp; configuration · BuildRelay</title><meta name="description" content="BuildRelay guides: plan, build, check, and resume development tasks."><link rel="icon" href="brand/logo.svg" type="image/svg+xml"><link rel="stylesheet" href="site.css"><script src="site.js" defer></script><link rel="canonical" href="https://dutch-panda.github.io/BuildRelay/configuration.html"></head>
+<body><a class="skip" href="#content">Skip to content</a><header><a class="brand" href="index.html"><img src="brand/logo.svg" alt="" width="32" height="32">BuildRelay <span>Docs</span></a><a href="https://github.com/Dutch-panda/BuildRelay">GitHub ↗</a></header><div class="layout"><aside class="sidebar"><details open><summary>Documentation</summary><nav aria-label="Documentation"><p>GET STARTED & BUILD</p><a href="index.html">Introduction</a><a href="example.html">Terminal example</a><a href="quickstart.html">Quick start</a><a href="workflow.html">Workflow &amp; alignment</a><a href="configuration.html" aria-current="page">Models &amp; configuration</a><a href="execution.html">Execution &amp; web research</a><a href="projects.html">Projects &amp; memory</a><a href="resume.html">Resume a task</a><a href="architecture.html">Architecture</a><a href="testing.html">Testing &amp; integration</a><a href="limitations.html">Limits &amp; security</a><a href="troubleshooting.html">Troubleshooting</a></nav></details></aside><main id="content"><div class="breadcrumb">BuildRelay / Models &amp; configuration</div><h1>Models &amp; configuration</h1><h2 id="tiered-model-routing-and-token-optimization">Tiered model routing and token optimization</h2>
+<p>To balance execution speed, reasoning depth, and cost efficiency, BuildRelay provides tiered model routing and context compression:</p>
+<ul>
+<li><strong>Model Tiers (<code>--tier</code>):</strong>
+<ul>
+<li><strong>Fast (<code>--tier fast</code>):</strong> Routes lightweight, fast models across all leads (<code>gpt-4o-mini</code>, <code>claude-3-5-haiku</code>, <code>gemini-2.0-flash</code>). Ideal for quick scripts, prototyping, and high speed.</li>
+<li><strong>Balanced (<code>--tier balanced</code> — default):</strong> Pairs fast models for routing (Natasha) and graph search (Odin) with high-reasoning models for architecture (Taghi: <code>o3-mini</code>) and implementation (Meti: <code>gpt-4o</code> / <code>claude-3-7-sonnet</code>).</li>
+<li><strong>Powerful (<code>--tier powerful</code>):</strong> Assigns top-tier frontier models across all design and execution phases.</li>
+</ul>
+</li>
+<li><strong>Lead-Specific Overrides:</strong>
+<ul>
+<li>Override individual leads via CLI flags: <code>--model-natasha</code>, <code>--model-odin</code>, <code>--model-taghi</code>, <code>--model-meti</code>.</li>
+<li>Scoped overrides take precedence over global <code>--model</code> and <code>--tier</code>.</li>
+</ul>
+</li>
+<li><strong>Model Lineup Approval Gate:</strong>
+<ul>
+<li>On launch, BuildRelay renders a 2-column model lineup card displaying the active model for each lead, cost tier label, caching status, and estimated budget.</li>
+<li>Interactive users can press <strong><code>[Enter]</code></strong> to confirm, <strong><code>[c]</code></strong> to quickly switch tiers, or <strong><code>[q]</code></strong> to abort. Auto/headless runs (<code>-y</code>/<code>--auto</code>) accept automatically.</li>
+</ul>
+</li>
+<li><strong>Prompt Prefix Caching:</strong>
+<ul>
+<li>All agent system prompts, static guidelines, and contracts are stabilized at prompt prefixes.</li>
+<li>Agents pass <code>model_settings={&quot;cache&quot;: True}</code>. Actual caching depends on the provider, model, and SDK support; BuildRelay does not guarantee a cache hit or measured latency or cost savings.</li>
+<li>Cached tokens are detected and discounted in token summary badges and ledger reports.</li>
+</ul>
+</li>
+<li><strong>Context Pruning &amp; Compression:</strong>
+<ul>
+<li><strong>Markdown Sanitization:</strong> <code>prune_markdown</code> strips verbose YAML frontmatter, empty sections, and backlink blocks.</li>
+<li><strong>Semantic Graph Pruning:</strong> <code>prune_graph_context</code> scores and ranks vault nodes by keyword overlap, passing only the top 3–5 relevant snippets to Odin rather than raw graph dumps.</li>
+<li><strong>Docker Log Slicing:</strong> <code>prune_docker_log</code> automatically detects failure tracebacks and assertion errors in long build logs, slicing around the error signature to prevent context window dilution during retry loops.</li>
+</ul>
+</li>
+</ul>
+<h2 id="token-usage-and-cost-analytics">Token usage and cost analytics</h2>
+<p>BuildRelay tracks exact prompt (input) and completion (output) token consumption across every lead using PydanticAI metrics:</p>
+<ul>
+<li><strong>Cost Estimation Engine:</strong> Estimates USD costs using a bundled model-rate table (OpenAI, Anthropic, Gemini). Rates and cache discounts are approximations, not provider billing records.</li>
+<li><strong>Local &amp; Test Models:</strong> Displays <code>$0.00 (Local)</code> for Ollama/vLLM and test runs.</li>
+<li><strong>Inline Badges:</strong> Natasha brief panels and Taghi specification cards display token tallies as each stage finishes (e.g. <code>Tokens Used: 1,550 (~$0.006)</code>).</li>
+<li><strong>Obsidian Vault Reports:</strong> Meti's review notes under <code>vault/code-reviews/</code> record full token metrics and costs.</li>
+<li><strong>Completion Table:</strong> At workflow completion, a styled Rich table summarizes prompt, completion, total tokens, and estimated cost per lead with grand totals.</li>
+</ul>
+<footer>Early-stage developer tool · Review generated code and validation results.<br><a href="https://github.com/Dutch-panda/BuildRelay/blob/main/README.md">Source guide on GitHub</a></footer></main><aside class="toc"><nav aria-label="On this page"><p>ON THIS PAGE</p><a href="#tiered-model-routing-and-token-optimization">Tiered model routing and token optimization</a><a href="#token-usage-and-cost-analytics">Token usage and cost analytics</a></nav></aside></div></body></html>

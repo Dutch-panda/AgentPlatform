@@ -390,6 +390,16 @@ The installed distribution provides the console script entry point `buildrelay` 
 
 The agent classes can also be called directly with a `model_name` (model string or Pydantic AI model object) and a `vault_path`. Agents support explicit dependency injection: `graph_manager`, custom artifact storage directories (`tasks_dir`, `research_dir`, `specs_dir`, `code_reviews_dir`), and `MetiImplementer` additionally accepts custom `sandbox` runners (e.g. `DockerSandboxRunner` or mock test runners). Constructors defer Docker connections and directory creation until operations actually require them. Programmatic Meti calls can supply `checkpoint`, `checkpoint_callback`, and a new `run_number` to persist and restore implementation progress; the CLI connects these to the ledger automatically. The CLI resolves a model per lead from provider tier presets and overrides. Collaborator injection and custom artifact-directory options are programmatic interfaces, not CLI flags.
 
+### Website documentation
+
+The GitHub Pages site in `docs/` provides an introduction, terminal example, and focused technical guides with persistent navigation. Technical guide content is generated from this README; edit the README first, then rebuild and commit the generated pages:
+
+```bash
+python scripts/build_docs.py
+```
+
+The builder uses `markdown-it-py`, installed with the existing Rich dependency. Site styling and mobile navigation live in `docs/site.css` and `docs/site.js`; the introduction and terminal example templates live in the builder. The captured output in `docs/examples/terminal-session.txt` is a dated CLI/offline-test run, not a model-powered implementation demo. Rebuilding the site does not rerun that capture. Open `docs/index.html` locally to review, or serve `docs/` with a local static server. GitHub Pages serves the committed output without a new documentation service.
+
 ### Testing
 
 Install the test extra and run the local validation command from the repository root:

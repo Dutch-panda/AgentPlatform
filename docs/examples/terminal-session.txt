@@ -1,0 +1,48 @@
+BuildRelay — actual local CLI and offline test capture
+Recorded: 2026-10-28
+This is not an AI implementation run. No live model, Docker, or Graphify integration was exercised.
+
+$ python main.py --help
+usage: main.py [-h] [--config] [--project PROJECT] [--resume TASK_ID]
+               [--model MODEL] [--tier {fast,balanced,powerful}]
+               [--model-natasha MODEL_NATASHA] [--model-odin MODEL_ODIN]
+               [--model-taghi MODEL_TAGHI] [--model-meti MODEL_METI]
+               [--image IMAGE] [-y] [--step]
+               [prompt]
+
+BuildRelay: plan, build, check, and resume AI development tasks
+
+positional arguments:
+  prompt                Task description or prompt
+
+options:
+  -h, --help            show this help message and exit
+  --config              Launch interactive onboarding & configuration wizard
+  --project PROJECT     Parent project ID
+  --resume TASK_ID      Resume a saved local task
+  --model MODEL         Model identifier (e.g. openai:gpt-4o,
+                        anthropic:claude-3-5-sonnet-latest)
+  --tier {fast,balanced,powerful}
+                        Model tier preset (fast, balanced, powerful)
+  --model-natasha MODEL_NATASHA
+                        Model override for Natasha (Coordinator)
+  --model-odin MODEL_ODIN
+                        Model override for Odin (Researcher)
+  --model-taghi MODEL_TAGHI
+                        Model override for Taghi (Architect)
+  --model-meti MODEL_METI
+                        Model override for Meti (Implementer)
+  --image IMAGE         Docker base image override (e.g. python:3.11-slim)
+  -y, --yes, --auto     Headless mode; accept defaults without interactive
+                        prompts
+  --step                Interactive step gates between each agent lead
+
+Exit status: 0
+
+$ python scripts/validate.py -m "not integration" --disable-warnings
+........................................................................ [ 38%]
+................................................................ [ 72%]
+....................................................                     [100%]
+188 passed, 8 deselected, 1 warning, 8 subtests passed in 3.84s
+
+Exit status: 0

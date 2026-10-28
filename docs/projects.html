@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><title>Projects &amp; memory · BuildRelay</title><meta name="description" content="BuildRelay guides: plan, build, check, and resume development tasks."><link rel="icon" href="brand/logo.svg" type="image/svg+xml"><link rel="stylesheet" href="site.css"><script src="site.js" defer></script><link rel="canonical" href="https://dutch-panda.github.io/BuildRelay/projects.html"></head>
+<body><a class="skip" href="#content">Skip to content</a><header><a class="brand" href="index.html"><img src="brand/logo.svg" alt="" width="32" height="32">BuildRelay <span>Docs</span></a><a href="https://github.com/Dutch-panda/BuildRelay">GitHub ↗</a></header><div class="layout"><aside class="sidebar"><details open><summary>Documentation</summary><nav aria-label="Documentation"><p>GET STARTED & BUILD</p><a href="index.html">Introduction</a><a href="example.html">Terminal example</a><a href="quickstart.html">Quick start</a><a href="workflow.html">Workflow &amp; alignment</a><a href="configuration.html">Models &amp; configuration</a><a href="execution.html">Execution &amp; web research</a><a href="projects.html" aria-current="page">Projects &amp; memory</a><a href="resume.html">Resume a task</a><a href="architecture.html">Architecture</a><a href="testing.html">Testing &amp; integration</a><a href="limitations.html">Limits &amp; security</a><a href="troubleshooting.html">Troubleshooting</a></nav></details></aside><main id="content"><div class="breadcrumb">BuildRelay / Projects &amp; memory</div><h1>Projects &amp; memory</h1><h2 id="keep-related-tasks-connected">Keep related tasks connected</h2>
+<p>Reuse a project ID across requests:</p>
+<pre><code class="language-bash">python main.py &quot;Design a SQLite-backed task tracker&quot; --project task-tracker
+python main.py &quot;Build a CSV import utility for a task tracker&quot; --project task-tracker
+</code></pre>
+<p>BuildRelay creates <code>vault/projects/task-tracker.md</code> if needed and preserves existing project-note content. Produced briefs, reports, specifications, and implementation reviews include a visible project link and frontmatter:</p>
+<pre><code class="language-yaml">project: &quot;[[projects/task-tracker]]&quot;
+</code></pre>
+<p>Project IDs accept letters, digits, underscores, and hyphens, and must start with a letter or digit. Project grouping links the notes and codebases: tasks sharing a project ID share the same workspace (<code>workspace/&lt;project_id&gt;/</code>), allowing successive tasks to build upon existing project modules and tests. Resumed runs reuse that task's workspace. Standalone tasks without a project ID use <code>workspace/&lt;task_id&gt;/</code>.</p>
+<img src="diagrams/saved-data.svg" alt="Stage notes connect to project notes and Graphify; the SQLite ledger saves resume progress, and Docker writes generated code to workspaces." width="760">
+<p>Open <strong><code>vault/</code> as an Obsidian vault</strong> to browse the notes and project wikilinks. Those links work independently of Graphify.</p>
+<p>Graph updates are attempted after stage artifacts are saved. Graphify Markdown extraction requires its own supported backend; if extraction fails, BuildRelay logs a warning and continues with saved notes. Without a usable graph, knowledge queries may return no context.</p>
+<h3 id="research-source-references">Research source references</h3>
+<p>Odin records nodes retrieved from its initial task lookup and its search and neighbor-query tools. Search matches node IDs, labels, source-file paths, and properties. Each saved research report includes a <strong>Related vault sources</strong> section with relative Markdown links and corresponding wikilinks in its <code>links</code> frontmatter.</p>
+<p>Source paths come from Graphify's <code>source_file</code> metadata, including that field inside <code>properties</code> when present. Only existing Markdown files inside the vault are listed; duplicate paths are removed, and missing files or paths outside the vault are omitted. The returned <code>ResearchReport.vault_sources</code> contains the same vault-relative paths, overriding any model-generated list.</p>
+<p>These references identify retrieved graph context. They do not establish that the full source notes were read or that each finding is supported by a particular note. If no source files can be resolved, the report states that explicitly. Graph extraction still requires a working Graphify backend.</p>
+<h2 id="what-stays-on-disk">What stays on disk</h2>
+<p>Each new task gets a permanent ID shaped like <code>task-&lt;prompt-slug&gt;-YYYYMMDD</code> (e.g. <code>task-build-csv-validator-20261026</code>). The slug is derived from the prompt before any model call; resume keeps the same ID.</p>
+<pre><code class="language-text">.state/tasks.db                      Local workflow ledger and checkpoints
+.state/&lt;task_id&gt;.lock                Local process lock file (may remain after exit)
+.state/task.log                      Shared execution log
+.state/search_cache/                 Cached web search results (no expiry)
+workspace/&lt;project_or_task_id&gt;/       Generated source, tests, docs, dependencies
+vault/
+├── tasks/&lt;task_id&gt;-brief.md          Routing brief with the permanent task ID
+├── research/research-&lt;task_id&gt;.md     Research report, when Odin runs
+├── specs/spec-&lt;task_id&gt;.md            Specification, when Taghi runs
+├── code-reviews/review-&lt;task_id&gt;.md   Implementation summary and validated phases
+├── projects/&lt;project_id&gt;.md          Optional shared project note
+└── .graphify/graph.json              Knowledge graph, when available
+</code></pre>
+<p>The local <code>.state/</code> directory, generated workspace files, stage notes, and graph artifacts are ignored by Git. Project notes under <code>vault/projects/</code> are <strong>not currently ignored</strong>; review them before committing.</p>
+<footer>Early-stage developer tool · Review generated code and validation results.<br><a href="https://github.com/Dutch-panda/BuildRelay/blob/main/README.md">Source guide on GitHub</a></footer></main><aside class="toc"><nav aria-label="On this page"><p>ON THIS PAGE</p><a href="#keep-related-tasks-connected">Keep related tasks connected</a><a href="#what-stays-on-disk">What stays on disk</a></nav></aside></div></body></html>

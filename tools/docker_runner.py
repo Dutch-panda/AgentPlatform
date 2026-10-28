@@ -69,8 +69,14 @@ class DockerSandboxRunner:
             try:
                 self.client.images.get(target_image)
             except docker.errors.ImageNotFound:
-                print(f"[DockerRunner] Image {target_image} not found locally. Pulling from Docker Hub...")
-                self.client.images.pull(target_image)
+                try:
+                    from tools.ui import print_agent, agent_status
+                    print_agent("docker", f"Image '{target_image}' not found locally. Pulling from Docker Hub...")
+                    with agent_status("docker", f"Pulling image '{target_image}'..."):
+                        self.client.images.pull(target_image)
+                except ImportError:
+                    print(f"[DockerRunner] Image {target_image} not found locally. Pulling from Docker Hub...")
+                    self.client.images.pull(target_image)
             # Create and run container safely with resource restrictions
             container = self.client.containers.create(
                 image=target_image,

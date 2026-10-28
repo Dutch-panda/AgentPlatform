@@ -240,3 +240,97 @@ def test_meti_ensures_workspace_readme(tmp_path):
     assert "pytest tests/test_parser.py" in content
     assert "Core parsing engine" in content
     assert "SUCCESS" in content
+
+
+def test_print_tool_call_summarizes_multiline_commands(capsys):
+    multiline_script = (
+        "mkdir -p src fixtures test scripts docs dist\n"
+        "cat > package.json <<'EOF'\n"
+        "{\n"
+        '  "name": "offline-form-mapper",\n'
+        '  "version": "1.0.0"\n'
+        "}\n"
+        "EOF\n"
+        "cat > src/config.js <<'EOF'\n"
+        "'use strict';\n"
+        "function validate() { return true; }\n"
+        "EOF\n"
+    )
+    print_tool_call("meti", "Docker", multiline_script)
+    out = capsys.readouterr().out
+    assert "Meti" in out
+    assert "Docker" in out
+    assert "package.json" in out
+    assert "config.js" in out
+    assert "lines" in out
+    # Raw multiline code body must NOT be dumped
+    assert "function validate() { return true; }" not in out
+
+
+def test_prompt_alignment_gate_escapes_brackets_and_allows_direct_number_pick(capsys):
+    from contracts import TaskBrief, AlignmentBrief, ClarificationQuestion, ClarificationOption
+    from tools.ui import prompt_alignment_gate
+
+    brief = TaskBrief(
+        task_id="task-align",
+        title="Align Test",
+        objective="Test",
+        slug="align-test",
+        target_lead="taghi",
+        research_questions=[],
+        alignment_brief=AlignmentBrief(
+            goal="Test goal",
+            core_features="Features",
+            tech_stack="Python",
+            exclusions="None",
+            next_actions="Design",
+        ),
+        clarification_questions=[
+            ClarificationQuestion(
+                id="db",
+                question="Preferred Database",
+                options=[
+                    ClarificationOption(key="1", label="SQLite", is_default=True),
+                    ClarificationOption(key="2", label="PostgreSQL", is_default=False),
+                    ClarificationOption(key="b", label="In-Memory", is_default=False),
+                ],
+            )
+        ],
+    )
+
+    # 1. User types "2" directly at prompt to select option 2
+    action, feedback, answers = prompt_alignment_gate(
+        brief, auto=False, input_func=lambda _: "2"
+    )
+    out = capsys.readouterr().out
+
+    # Action line must visibly show [Y/enter], [e], and [q]
+    assert "[Y/enter]" in out
+    assert "[e]" in out
+    assert "[q]" in out
+    # Options must show brackets without rich markup stripping [b]
+    assert "[1]" in out
+    assert "[2]" in out
+    assert "[b]" in out
+
+    # Verified selection of option 2
+    assert action == "edit"
+    assert "Selected option [2] PostgreSQL" in feedback
+    assert answers.get("db") == "PostgreSQL"
+    assert "✔ Selected option [2]: PostgreSQL" in out
+
+
+def test_slugify_task_prompt_semantics():
+    from main import slugify_task_prompt
+
+    # Contraction and filler words removed, meaningful domain words preserved
+    s1 = slugify_task_prompt("A workflow which get's data and parses CSV")
+    assert s1 == "workflow-data-parses-csv"
+    assert "-get-s" not in s1
+    assert "which" not in s1
+
+    # Form mapper prompt preserved cleanly
+    s2 = slugify_task_prompt("workflow which gets offline form mapper and validates spreadsheet")
+    assert s2 == "workflow-offline-form-mapper"
+    assert "gets" not in s2
+

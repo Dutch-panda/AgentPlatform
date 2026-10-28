@@ -47,17 +47,33 @@ from tools.ui import (
 load_dotenv()
 
 
-def slugify_task_prompt(prompt: str, max_words: int = 4, max_chars: int = 28) -> str:
+def slugify_task_prompt(prompt: str, max_words: int = 4, max_chars: int = 32) -> str:
     """Extract a concise, semantic kebab-case slug from a user prompt."""
     stop_words = {
+        # Articles & prepositions
         "a", "an", "the", "and", "or", "in", "on", "at", "to", "for", "with",
-        "by", "of", "from", "build", "create", "make", "write", "implement",
-        "add", "please", "i", "want", "we", "need", "that", "this", "is", "it",
-        "tool", "app", "project", "simple", "complete",
+        "by", "of", "from", "into", "onto", "as", "about", "between", "through",
+        # Pronouns & demonstratives
+        "i", "me", "my", "we", "us", "our", "you", "your", "he", "she", "it", "they", "them",
+        "this", "that", "these", "those", "which", "who", "whom", "whose", "what", "where", "when", "why", "how",
+        # Auxiliary & modal verbs
+        "be", "is", "am", "are", "was", "were", "been", "being",
+        "have", "has", "had", "having", "do", "does", "did", "doing",
+        "can", "could", "shall", "should", "will", "would", "may", "might", "must",
+        # Contraction stems
+        "t", "s", "d", "ll", "ve", "re", "m",
+        "don", "doesn", "didn", "isn", "aren", "won",
+        # Generic request verbs & filler words
+        "build", "create", "make", "write", "implement", "develop", "generate",
+        "add", "please", "want", "need", "like", "just", "also", "simple",
+        "complete", "tool", "app", "project",
+        "get", "gets", "got", "getting", "let", "lets", "using", "uses", "used", "use",
+        "some", "any", "all", "each", "every", "other", "another", "such", "than", "then", "so",
     }
-    words = re.findall(r"[a-z0-9]+", prompt.lower())
-    meaningful = [w for w in words if w not in stop_words]
-    selected = meaningful[:max_words] if meaningful else words[:max_words]
+    cleaned = re.sub(r"'\w+", "", prompt.lower())
+    words = re.findall(r"[a-z0-9]+", cleaned)
+    meaningful = [w for w in words if w not in stop_words and (len(w) >= 3 or w.isdigit())]
+    selected = meaningful[:max_words] if meaningful else [w for w in words if len(w) >= 2][:max_words]
     slug = "-".join(selected)
     if len(slug) > max_chars:
         trimmed = slug[:max_chars].rsplit("-", 1)[0]

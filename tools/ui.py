@@ -46,7 +46,34 @@ def print_agent(agent: str, message: str, detail: str | None = None) -> None:
 def print_tool_call(agent: str, action: str, detail: str) -> None:
     """Print a subtle, dimmed tool invocation line to prevent clutter."""
     theme = _get_theme(agent)
-    console.print(f"   [dim]↳ \\[{escape(theme['name'])}\\] {escape(action)}: {escape(detail)}[/dim]")
+    detail_str = str(detail).strip()
+    lines = detail_str.splitlines()
+
+    if len(lines) > 1:
+        # Check if the command is writing files (e.g. cat > file <<EOF or tee file)
+        import re
+        from pathlib import Path
+        written_files = re.findall(
+            r"(?:cat\s*>\s*|cat\s*<<['\"]?\w+['\"]?\s*>\s*|tee\s+)([^\s<>&|;'\"]+)",
+            detail_str,
+        )
+        if written_files:
+            file_names = [Path(f).name for f in written_files if Path(f).name]
+            files_str = ", ".join(file_names[:3])
+            if len(file_names) > 3:
+                files_str += f" (+{len(file_names) - 3} more)"
+            first_cmd = lines[0].strip()
+            if first_cmd.startswith("mkdir"):
+                summary = f"Scaffolding & writing {files_str} ({len(lines)} lines)"
+            else:
+                summary = f"Writing {files_str} ({len(lines)} lines)"
+        else:
+            first_line = lines[0].strip()
+            summary = f"{first_line[:70]}... (+{len(lines) - 1} lines)"
+    else:
+        summary = detail_str[:100] + ("..." if len(detail_str) > 100 else "")
+
+    console.print(f"   [dim]↳ \\[{escape(theme['name'])}\\] {escape(action)}: {escape(summary)}[/dim]")
 
 
 @contextmanager
@@ -466,12 +493,15 @@ def prompt_alignment_gate(
                 lbl = getattr(opt, "label", "")
                 is_def = getattr(opt, "is_default", False)
                 def_tag = " [bold green](Default)[/bold green]" if is_def else ""
-                console.print(f"     [{key}] {escape(lbl)}{def_tag}")
+                console.print(f"     [bold cyan]\\[{escape(str(key))}][/bold cyan] {escape(lbl)}{def_tag}")
         console.print()
 
     console.print(
-        "[bold]👉 Action:[/bold] [green][Y/enter][/green] Confirm & Launch  |  "
-        "[yellow][e][/yellow] Edit / Pivot Intent  |  [red][q][/red] Quit"
+        "[bold]👉 Action:[/bold] "
+        "[green]\\[Y/enter][/green] Confirm Defaults  |  "
+        "[cyan]\\[1, 2...][/cyan] Pick Option  |  "
+        "[yellow]\\[e][/yellow] Edit / Custom  |  "
+        "[red]\\[q][/red] Quit"
     )
     try:
         user_choice = ask("> ").strip()
@@ -486,10 +516,34 @@ def prompt_alignment_gate(
     if low in ("e", "edit"):
         try:
             feedback = ask("📝 Describe intent changes / clarifications: ").strip()
-            return "edit", feedback, answers
+            return "edit", feedback or "User requested intent review.", answers
         except (EOFError, KeyboardInterrupt):
             return "quit", None, {}
 
+    # Check if user typed a specific option number / key (e.g. "2" or "b")
+    matched_opt = None
+    matched_q = None
+    for q in questions:
+        for opt in getattr(q, "options", []):
+            if str(getattr(opt, "key", "")).strip().lower() == low:
+                matched_opt = opt
+                matched_q = q
+                break
+        if matched_opt:
+            break
+
+    if matched_opt and matched_q:
+        opt_key = getattr(matched_opt, "key", user_choice)
+        opt_label = getattr(matched_opt, "label", "")
+        q_id = getattr(matched_q, "id", str(matched_q))
+        q_text = getattr(matched_q, "question", "requirement")
+        answers[q_id] = opt_label
+        console.print(f"   [bold green]✔ Selected option \\[{opt_key}]: {escape(opt_label)}[/bold green]")
+        feedback = f"Selected option [{opt_key}] {opt_label} for '{q_text}'."
+        return "edit", feedback, answers
+
+    # Freeform user input treated as modification/clarification
+    console.print(f"   [dim]↳ Applying modification: {escape(user_choice)}[/dim]")
     return "edit", user_choice, answers
 
 

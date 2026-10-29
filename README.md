@@ -277,7 +277,29 @@ python main.py "Design a SQLite-backed task tracker" --project task-tracker
 python main.py "Build a CSV import utility for a task tracker" --project task-tracker
 ```
 
-BuildRelay creates `vault/projects/task-tracker.md` if needed and preserves existing project-note content. Produced briefs, reports, specifications, and implementation reviews include a visible project link and frontmatter:
+### Interactive Project REPL Session
+
+Launch a persistent, conversational engineering session within any project workspace:
+
+```bash
+# Launch interactive REPL session
+python main.py session task-tracker
+# Or using the console script:
+buildrelay session task-tracker
+```
+
+Inside the interactive session, BuildRelay preserves context across tasks without re-asking questions:
+- **`/profile`**: View the active data schemas, form fields, and architectural rules in `workspace/<project_id>/PROJECT_PROFILE.md`.
+- **`/env`**: Inspect or configure project-specific credentials (e.g. `SPREADSHEET_ID`, `WEBHOOK_URL`) stored safely in gitignored `workspace/<project_id>/.env`.
+- **`/test`**: Run local unit tests and Tier 2 live verification smoke tests within the workspace.
+- **`<prompt>`**: Type any feature request, revision, or bugfix to immediately plan, build, and check code in the project workspace with shared memory.
+
+### Project Memory on Disk (`PROJECT_PROFILE.md` & Local `.env`)
+
+BuildRelay creates `vault/projects/<project_id>.md` and initializes `workspace/<project_id>/`:
+- **`PROJECT_PROFILE.md`**: Living specification recording active data schemas, input surfaces, architectural rules, and task history. Natasha and Taghi automatically load this memory into prompt context, preventing schema drift across iterations.
+- **`.env` (mode `0600`)**: Dedicated project secrets file, automatically gitignored.
+- Produced briefs, reports, specifications, and implementation reviews include a visible project link and frontmatter:
 
 ```yaml
 project: "[[projects/task-tracker]]"
@@ -433,7 +455,7 @@ python -m pip install -e '.[test]'
 python scripts/validate.py
 ```
 
-The script runs the platform tests in `tests/` (218 passing unit tests); extra pytest arguments can be appended, for example `python scripts/validate.py -k validation`. Test discovery excludes generated workspaces. The suite uses Pydantic AI `TestModel` for structured outputs and `FunctionModel` for scripted tool calls, blocks real model requests, replaces Docker and graph extraction, and writes artifacts in temporary directories. It covers routing contracts, project links, explicit dependency injection, graph retrieval, source resolution and report references, phase validation, bounded recovery, container isolation invariants, Docker failure feedback, ledger persistence, resume behavior, onboarding, model tiers, token estimates, alignment gates, and mocked web search; it does not assess live model routing quality.
+The script runs the platform tests in `tests/` (225 passing unit tests); extra pytest arguments can be appended, for example `python scripts/validate.py -k validation`. Test discovery excludes generated workspaces. The suite uses Pydantic AI `TestModel` for structured outputs and `FunctionModel` for scripted tool calls, blocks real model requests, replaces Docker and graph extraction, and writes artifacts in temporary directories. It covers routing contracts, project links, explicit dependency injection, graph retrieval, source resolution and report references, phase validation, bounded recovery, container isolation invariants, Docker failure feedback, ledger persistence, resume behavior, onboarding, model tiers, token estimates, alignment gates, and mocked web search; it does not assess live model routing quality.
 
 #### Opt-in Integration Smoke Checks (Real Docker & Graphify)
 

@@ -35,6 +35,10 @@ Your objective is maximum autonomy within strict security boundaries.
   - `Tier 1 (Automated Docker Sandbox)`: Meti validates all execution phases inside Docker using offline deterministic unit tests and mock service adapters (e.g. mock `SpreadsheetApp`, mock REST responses) with 0 external network dependencies.
   - `Tier 2 (Guided Live Verification)`: Taghi mandates `live_verification_guide`, and Meti builds a dedicated live smoke script (e.g. `scripts/verify_live.py` or Apps Script `testDirectSync()`) plus an interactive checklist in `README.md` for real-environment verification.
 - **Research-Only Flow**: Tasks with `--research` / `--research-only` or explicit research prompts complete cleanly after Odin without invoking Taghi or Meti.
+- **Project REPL & Workspace Memory**:
+  - `buildrelay session <project_id>` (`tools/session.py`): Continuous conversational project REPL supporting iterative commands (`/profile`, `/env`, `/test`, `/exit`).
+  - Living `PROJECT_PROFILE.md` memory schema in `workspace/<project_id>/` recording active schemas, input surfaces, rules, and task history. Injected into agent prompts.
+  - Dedicated project workspace `.env` (mode `0600`, gitignored) for project-specific tokens, spreadsheet IDs, and webhook secrets.
 - **Meti Architecture**:
   - `agents/meti.py`: Implementation coordinator and Docker tool binding.
   - `agents/execution_policy.py`: Phase validation ordering, retry budgets (3 attempts per phase per run), recovery prompts, and ground-truth result finalization.

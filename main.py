@@ -400,6 +400,13 @@ async def run_task(
             else:
                 break
 
+    if project:
+        from tools.project_notes import update_project_profile
+        try:
+            update_project_profile(project, task_id, brief=brief, spec=spec, result=impl_res)
+        except Exception:
+            pass
+
     return impl_res
 
 
@@ -407,6 +414,7 @@ async def main() -> None:
     parser = argparse.ArgumentParser(description='BuildRelay: plan, build, check, and resume AI development tasks')
     parser.add_argument('prompt', nargs='?', help='Task description or prompt')
     parser.add_argument('--config', action='store_true', help='Launch interactive onboarding & configuration wizard')
+    parser.add_argument('--session', nargs='?', const='', help='Launch interactive REPL project session')
     parser.add_argument('--project', type=validate_project_id, help='Parent project ID')
     parser.add_argument('--resume', type=validate_task_id, metavar='TASK_ID', help='Resume a saved local task')
     parser.add_argument('--model', help='Model identifier (e.g. openai:gpt-4o, anthropic:claude-3-5-sonnet-latest)')
@@ -425,6 +433,28 @@ async def main() -> None:
     if getattr(args, "config", False) or (args.prompt is not None and args.prompt.strip().lower() == "config"):
         from tools.onboarding import run_onboarding_wizard
         run_onboarding_wizard(is_reconfig=True)
+        return
+
+    # Interactive project session: python main.py --session [PROJECT_ID] or python main.py session [PROJECT_ID]
+    is_session = False
+    session_proj = None
+    if getattr(args, "session", None) is not None:
+        is_session = True
+        session_proj = args.session or args.project or "default-project"
+    elif args.prompt and args.prompt.strip().lower().startswith("session"):
+        is_session = True
+        parts = args.prompt.strip().split()
+        session_proj = parts[1] if len(parts) > 1 else (args.project or "default-project")
+
+    if is_session:
+        from tools.session import run_project_session
+        await run_project_session(
+            project_id=session_proj,
+            model=args.model,
+            tier=args.tier,
+            auto=args.auto,
+            step=args.step,
+        )
         return
 
     if args.resume and (args.prompt is not None or args.project is not None):

@@ -5,7 +5,27 @@
 <pre><code class="language-bash">python main.py &quot;Design a SQLite-backed task tracker&quot; --project task-tracker
 python main.py &quot;Build a CSV import utility for a task tracker&quot; --project task-tracker
 </code></pre>
-<p>BuildRelay creates <code>vault/projects/task-tracker.md</code> if needed and preserves existing project-note content. Produced briefs, reports, specifications, and implementation reviews include a visible project link and frontmatter:</p>
+<h3 id="interactive-project-repl-session">Interactive Project REPL Session</h3>
+<p>Launch a persistent, conversational engineering session within any project workspace:</p>
+<pre><code class="language-bash"># Launch interactive REPL session
+python main.py session task-tracker
+# Or using the console script:
+buildrelay session task-tracker
+</code></pre>
+<p>Inside the interactive session, BuildRelay preserves context across tasks without re-asking questions:</p>
+<ul>
+<li><strong><code>/profile</code></strong>: View the active data schemas, form fields, and architectural rules in <code>workspace/&lt;project_id&gt;/PROJECT_PROFILE.md</code>.</li>
+<li><strong><code>/env</code></strong>: Inspect or configure project-specific credentials (e.g. <code>SPREADSHEET_ID</code>, <code>WEBHOOK_URL</code>) stored safely in gitignored <code>workspace/&lt;project_id&gt;/.env</code>.</li>
+<li><strong><code>/test</code></strong>: Run local unit tests and Tier 2 live verification smoke tests within the workspace.</li>
+<li><strong><code>&lt;prompt&gt;</code></strong>: Type any feature request, revision, or bugfix to immediately plan, build, and check code in the project workspace with shared memory.</li>
+</ul>
+<h3 id="project-memory-on-disk-project_profilemd--local-env">Project Memory on Disk (<code>PROJECT_PROFILE.md</code> &amp; Local <code>.env</code>)</h3>
+<p>BuildRelay creates <code>vault/projects/&lt;project_id&gt;.md</code> and initializes <code>workspace/&lt;project_id&gt;/</code>:</p>
+<ul>
+<li><strong><code>PROJECT_PROFILE.md</code></strong>: Living specification recording active data schemas, input surfaces, architectural rules, and task history. Natasha and Taghi automatically load this memory into prompt context, preventing schema drift across iterations.</li>
+<li><strong><code>.env</code> (mode <code>0600</code>)</strong>: Dedicated project secrets file, automatically gitignored.</li>
+<li>Produced briefs, reports, specifications, and implementation reviews include a visible project link and frontmatter:</li>
+</ul>
 <pre><code class="language-yaml">project: &quot;[[projects/task-tracker]]&quot;
 </code></pre>
 <p>Project IDs accept letters, digits, underscores, and hyphens, and must start with a letter or digit. Project grouping links the notes and codebases: tasks sharing a project ID share the same workspace (<code>workspace/&lt;project_id&gt;/</code>), allowing successive tasks to build upon existing project modules and tests. Resumed runs reuse that task's workspace. Standalone tasks without a project ID use <code>workspace/&lt;task_id&gt;/</code>.</p>

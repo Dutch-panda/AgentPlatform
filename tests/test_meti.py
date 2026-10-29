@@ -90,3 +90,20 @@ def test_invalid_phase_plan_is_rejected(tmp_path, sandbox, bad_phases):
     with pytest.raises(ValueError):
         asyncio.run(meti.execute_specification("task-csv", "CSV module", bad_phases))
     sandbox.execute_code.assert_not_called()
+
+
+def test_meti_refine_deliverable(tmp_path, sandbox):
+    call = dict(shell_command="echo 'refined README' > README.md", phase_name=None)
+    meti = MetiImplementer(
+        vault_path=str(tmp_path / "vault"),
+        workspace_path=str(tmp_path / "workspace"),
+        model_name=scripted_model([call], []),
+    )
+    phases = [ExecutionPhase(phase_name="1-test", instructions="Test", validation_command="pytest")]
+    result = asyncio.run(meti.refine_deliverable(
+        "task-refine",
+        "Add a beginner guide to README",
+        phases,
+    ))
+    assert result.status == "success"
+    assert (tmp_path / "workspace" / "task-refine" / "README.md").exists()

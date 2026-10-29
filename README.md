@@ -170,11 +170,16 @@ To eliminate early misunderstandings and prevent wasted model calls, BuildRelay 
 2. **Smart Clarification Wizard:**
    - If technical ambiguity is detected, Natasha presents 1–2 targeted multiple-choice questions with preselected defaults.
    - Pressing **`[Enter]`** immediately confirms all recommended defaults with zero friction.
+   - Pressing an option number or letter (e.g. **`[2]`** or **`[b]`**) directly selects that choice.
    - Pressing **`[e]`** allows typing a custom clarification or pivoting intent.
 3. **Execution Flags:**
    - **Default interactive:** Runs the alignment gate before initiating research or design.
    - **Headless mode (`-y`, `--yes`, `--auto`):** Automatically accepts recommended defaults without terminal prompts; ideal for scripting and CI.
    - **Step-by-step mode (`--step`):** Prompts for confirmation before handing off to each lead (Natasha → Odin/Taghi → Meti). If the user pivots during a step gate, downstream checkpoints in `.state/tasks.db` are safely rolled back and re-routed.
+4. **Meti Delivery Confirmation Gate:**
+   - Once all implementation phases pass validation, BuildRelay presents an interactive delivery card displaying the workspace deliverables.
+   - Pressing **`[Enter]`** or **`[c]`** accepts the delivery and marks the task complete.
+   - Pressing **`[r]`** triggers Meti's live **Refinement Loop** to adjust documentation, add visual flowcharts, or generate setup scripts based on user feedback before finalizing.
 
 ## Token usage and cost analytics
 
@@ -224,6 +229,8 @@ Natasha and Odin have documentation search tools; Odin also has package registry
 
 - **Live Progress Spinners:** Active Docker operations and LLM generation phases display animated Rich status spinners (`rich.status.Status`) instead of terminal dumps.
 - **Clean Execution Logs:** Docker stdout and stderr are routed to `.state/task.log`. Set `BUILDRELAY_DEBUG=1` to echo full container outputs directly to the terminal.
+- **Meti Delivery Confirmation Gate:** Pauses after phase checks pass to present an interactive delivery summary, file tree, and quickstart commands, letting users accept (`[Enter]`/`[c]`) or request follow-up refinements (`[r]`) in a live loop before closing the task.
+- **User-First Deliverables Mandate:** System prompts mandate beginner-friendly READMEs with visual architecture/dataflow diagrams, zero-jargon quickstarts, and zero-dependency interactive setup scripts (`scripts/setup.js`) to eliminate configuration friction.
 - **Auto-Generated Workspace README:** Meti creates a fallback `README.md` in the project or standalone task workspace when one is missing or empty, with architecture, run, and validation guidance. Existing nonempty READMEs are preserved; review the instructions against the generated project.
 - **Workspace File Tree:** Renders a clean `rich.tree.Tree` showing generated project files while filtering noisy build artifacts (`__pycache__`, `.git`, `.venv`).
 - **How to Run & Test Banner:** Displays prominent quickstart commands based on the detected project stack (e.g. Python, Node.js, Rust, Go).
@@ -409,7 +416,7 @@ python -m pip install -e '.[test]'
 python scripts/validate.py
 ```
 
-The script runs the platform tests in `tests/` (188 passing unit tests); extra pytest arguments can be appended, for example `python scripts/validate.py -k validation`. Test discovery excludes generated workspaces. The suite uses Pydantic AI `TestModel` for structured outputs and `FunctionModel` for scripted tool calls, blocks real model requests, replaces Docker and graph extraction, and writes artifacts in temporary directories. It covers routing contracts, project links, explicit dependency injection, graph retrieval, source resolution and report references, phase validation, bounded recovery, container isolation invariants, Docker failure feedback, ledger persistence, resume behavior, onboarding, model tiers, token estimates, alignment gates, and mocked web search; it does not assess live model routing quality.
+The script runs the platform tests in `tests/` (193 passing unit tests); extra pytest arguments can be appended, for example `python scripts/validate.py -k validation`. Test discovery excludes generated workspaces. The suite uses Pydantic AI `TestModel` for structured outputs and `FunctionModel` for scripted tool calls, blocks real model requests, replaces Docker and graph extraction, and writes artifacts in temporary directories. It covers routing contracts, project links, explicit dependency injection, graph retrieval, source resolution and report references, phase validation, bounded recovery, container isolation invariants, Docker failure feedback, ledger persistence, resume behavior, onboarding, model tiers, token estimates, alignment gates, and mocked web search; it does not assess live model routing quality.
 
 #### Opt-in Integration Smoke Checks (Real Docker & Graphify)
 

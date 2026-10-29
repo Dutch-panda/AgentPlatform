@@ -334,3 +334,35 @@ def test_slugify_task_prompt_semantics():
     assert s2 == "workflow-offline-form-mapper"
     assert "gets" not in s2
 
+
+def test_prompt_delivery_gate(capsys, tmp_path):
+    from tools.ui import prompt_delivery_gate
+
+    ws = tmp_path / "workspace" / "task-demo"
+    ws.mkdir(parents=True, exist_ok=True)
+
+    # 1. Auto mode
+    action, fb = prompt_delivery_gate("task-demo", ws, "All phases passed", auto=True)
+    assert action == "confirm"
+    assert fb is None
+
+    # 2. Enter confirms
+    action, fb = prompt_delivery_gate("task-demo", ws, "All phases passed", auto=False, input_func=lambda _: "")
+    assert action == "confirm"
+    assert fb is None
+
+    # 3. 'r' prompts for refinement
+    inputs = iter(["r", "Add a beginner quickstart to README"])
+    action, fb = prompt_delivery_gate("task-demo", ws, "All phases passed", auto=False, input_func=lambda _: next(inputs))
+    assert action == "refine"
+    assert fb == "Add a beginner quickstart to README"
+
+    # 4. Direct text input at prompt treated as refinement
+    action, fb = prompt_delivery_gate("task-demo", ws, "All phases passed", auto=False, input_func=lambda _: "Explain how to run on Windows")
+    assert action == "refine"
+    assert fb == "Explain how to run on Windows"
+
+    # 5. 'q' aborts
+    action, fb = prompt_delivery_gate("task-demo", ws, "All phases passed", auto=False, input_func=lambda _: "q")
+    assert action == "quit"
+

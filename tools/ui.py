@@ -575,8 +575,8 @@ def prompt_step_gate(
         return "confirm", None
 
     console.print(
-        f"[bold]Proceed to {theme['name']}?[/bold] [green][Y/enter][/green] Proceed  |  "
-        f"[yellow][e][/yellow] Pivot / Re-route  |  [red][q][/red] Abort"
+        f"[bold]Proceed to {theme['name']}?[/bold] [green]\\[Y/enter][/green] Proceed  |  "
+        f"[yellow]\\[e][/yellow] Pivot / Re-route  |  [red]\\[q][/red] Abort"
     )
     try:
         choice = ask("> ").strip()
@@ -596,6 +596,75 @@ def prompt_step_gate(
             return "quit", None
 
     return "pivot", choice
+
+
+def prompt_delivery_gate(
+    task_id: str,
+    workspace_path: Path,
+    summary_text: str,
+    auto: bool = False,
+    input_func: Callable[[str], str] | None = None,
+) -> tuple[str, str | None]:
+    """
+    Delivery review gate after Meti validates all phases, before final completion.
+    Returns: ('confirm' | 'refine' | 'quit', feedback_text)
+    """
+    import sys
+
+    theme = _get_theme("meti")
+    rel_ws = str(workspace_path)
+    try:
+        rel_ws = str(workspace_path.relative_to(Path.cwd()))
+    except ValueError:
+        pass
+
+    content = (
+        f"[bold white]📦 Deliverables Ready in:[/bold white] [cyan]{escape(rel_ws)}[/cyan]\n"
+        f"[bold white]🎯 Implementation Summary:[/bold white] {escape(summary_text)}\n\n"
+        "[dim]Review the generated files and instructions. If you would like simpler guides, "
+        "visual charts, or code refinements, request them now before final delivery.[/dim]"
+    )
+
+    panel = Panel(
+        content.strip(),
+        title=f"[{theme['color']}]{theme['icon']} Meti Delivery Review: {escape(task_id)}[/{theme['color']}]",
+        title_align="left",
+        border_style="green",
+        padding=(1, 2),
+    )
+    console.print()
+    console.print(panel)
+
+    ask = input_func or input
+    if auto or (input_func is None and not sys.stdin.isatty()):
+        return "confirm", None
+
+    console.print(
+        "[bold]👉 Delivery Action:[/bold] "
+        "[green]\\[Y/enter][/green] Accept & Complete  |  "
+        "[yellow]\\[r][/yellow] Request Refinement (Docs/Code)  |  "
+        "[red]\\[q][/red] Quit"
+    )
+    try:
+        choice = ask("> ").strip()
+    except (EOFError, KeyboardInterrupt):
+        return "quit", None
+
+    low = choice.lower()
+    if low in ("", "y", "yes"):
+        return "confirm", None
+    if low in ("q", "quit", "exit"):
+        return "quit", None
+    if low in ("r", "refine", "edit", "e"):
+        try:
+            feedback = ask("📝 Describe refinements needed (e.g. clearer README, beginner guide, specific fixes):\n> ").strip()
+            return "refine", feedback or "User requested documentation and usability refinement."
+        except (EOFError, KeyboardInterrupt):
+            return "quit", None
+
+    # Freeform text typed directly at prompt
+    console.print(f"   [dim]↳ Requesting refinement: {escape(choice)}[/dim]")
+    return "refine", choice
 
 
 def print_model_lineup_card(

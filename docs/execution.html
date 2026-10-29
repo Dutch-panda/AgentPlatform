@@ -27,6 +27,8 @@
 <ul>
 <li><strong>Live Progress Spinners:</strong> Active Docker operations and LLM generation phases display animated Rich status spinners (<code>rich.status.Status</code>) instead of terminal dumps.</li>
 <li><strong>Clean Execution Logs:</strong> Docker stdout and stderr are routed to <code>.state/task.log</code>. Set <code>BUILDRELAY_DEBUG=1</code> to echo full container outputs directly to the terminal.</li>
+<li><strong>Meti Delivery Confirmation Gate:</strong> Pauses after phase checks pass to present an interactive delivery summary, file tree, and quickstart commands, letting users accept (<code>[Enter]</code>/<code>[c]</code>) or request follow-up refinements (<code>[r]</code>) in a live loop before closing the task.</li>
+<li><strong>User-First Deliverables Mandate:</strong> System prompts mandate beginner-friendly READMEs with visual architecture/dataflow diagrams, zero-jargon quickstarts, and zero-dependency interactive setup scripts (<code>scripts/setup.js</code>) to eliminate configuration friction.</li>
 <li><strong>Auto-Generated Workspace README:</strong> Meti creates a fallback <code>README.md</code> in the project or standalone task workspace when one is missing or empty, with architecture, run, and validation guidance. Existing nonempty READMEs are preserved; review the instructions against the generated project.</li>
 <li><strong>Workspace File Tree:</strong> Renders a clean <code>rich.tree.Tree</code> showing generated project files while filtering noisy build artifacts (<code>__pycache__</code>, <code>.git</code>, <code>.venv</code>).</li>
 <li><strong>How to Run &amp; Test Banner:</strong> Displays prominent quickstart commands based on the detected project stack (e.g. Python, Node.js, Rust, Go).</li>

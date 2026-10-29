@@ -40,6 +40,7 @@ from tools.ui import (
     print_token_summary_table,
     print_workspace_tree,
     prompt_alignment_gate,
+    prompt_delivery_gate,
     prompt_model_approval_gate,
     prompt_step_gate,
 )
@@ -329,6 +330,36 @@ async def run_task(
         impl_res.token_usage["model"] = str(pipeline_models["meti"])
         record.token_usage["meti"] = impl_res.token_usage
         ledger.save(record)
+
+    # Post-implementation delivery confirmation gate & refinement loop
+    if impl_res.status == 'success' and not auto:
+        workspace_dir = project or task_id
+        workspace_path = Path("workspace") / workspace_dir
+        while True:
+            gate_action, gate_feedback = prompt_delivery_gate(
+                task_id,
+                workspace_path,
+                impl_res.summary,
+                auto=auto,
+            )
+            if gate_action == "quit":
+                print_agent("orchestrator", "Task execution terminated at delivery gate.")
+                sys.exit(0)
+            elif gate_action == "refine" and gate_feedback:
+                impl_res = await MetiImplementer(model_name=meti_model).refine_deliverable(
+                    task_id,
+                    gate_feedback,
+                    spec.phases,
+                    project_id=project,
+                    base_image=effective_image,
+                )
+                if getattr(impl_res, "token_usage", None):
+                    impl_res.token_usage["model"] = str(pipeline_models["meti"])
+                    record.token_usage["meti"] = impl_res.token_usage
+                    ledger.save(record)
+            else:
+                break
+
     return impl_res
 
 

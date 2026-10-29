@@ -25,6 +25,7 @@
 <ul>
 <li>If technical ambiguity is detected, Natasha presents 1–2 targeted multiple-choice questions with preselected defaults.</li>
 <li>Pressing <strong><code>[Enter]</code></strong> immediately confirms all recommended defaults with zero friction.</li>
+<li>Pressing an option number or letter (e.g. <strong><code>[2]</code></strong> or <strong><code>[b]</code></strong>) directly selects that choice.</li>
 <li>Pressing <strong><code>[e]</code></strong> allows typing a custom clarification or pivoting intent.</li>
 </ul>
 </li>
@@ -33,6 +34,13 @@
 <li><strong>Default interactive:</strong> Runs the alignment gate before initiating research or design.</li>
 <li><strong>Headless mode (<code>-y</code>, <code>--yes</code>, <code>--auto</code>):</strong> Automatically accepts recommended defaults without terminal prompts; ideal for scripting and CI.</li>
 <li><strong>Step-by-step mode (<code>--step</code>):</strong> Prompts for confirmation before handing off to each lead (Natasha → Odin/Taghi → Meti). If the user pivots during a step gate, downstream checkpoints in <code>.state/tasks.db</code> are safely rolled back and re-routed.</li>
+</ul>
+</li>
+<li><strong>Meti Delivery Confirmation Gate:</strong>
+<ul>
+<li>Once all implementation phases pass validation, BuildRelay presents an interactive delivery card displaying the workspace deliverables.</li>
+<li>Pressing <strong><code>[Enter]</code></strong> or <strong><code>[c]</code></strong> accepts the delivery and marks the task complete.</li>
+<li>Pressing <strong><code>[r]</code></strong> triggers Meti's live <strong>Refinement Loop</strong> to adjust documentation, add visual flowcharts, or generate setup scripts based on user feedback before finalizing.</li>
 </ul>
 </li>
 </ol>

@@ -67,7 +67,11 @@ class MetiImplementer:
                 "and retry the same phase's exact validation command. Do not weaken tests to obtain a pass. "
                 "Each phase has at most three validation attempts total (the initial attempt and two retries). "
                 "The workflow stops when that limit is exhausted. "
-                "Each command starts a fresh container; keep durable files and dependencies in the mounted workspace."
+                "Each command starts a fresh container; keep durable files and dependencies in the mounted workspace. "
+                "When implementing documentation or README files, write welcoming, user-first guides with visual flowcharts (ASCII/Mermaid) "
+                "and numbered step-by-step quickstarts so any user can run and use the project with zero cognitive friction. "
+                "If the task requires user configuration (e.g. spreadsheet IDs, tokens, paths), include an interactive CLI setup script "
+                "(e.g. 'node scripts/setup.js' or 'python setup.py') that prompts the user in plain English."
             ),
         )
 
@@ -285,6 +289,59 @@ class MetiImplementer:
         await update_vault_graph(self.graph_manager, note_filename)
         return implementation_result
 
+    async def refine_deliverable(
+        self,
+        task_id: str,
+        refinement_request: str,
+        phases: list[ExecutionPhase],
+        project_id: str | None = None,
+        base_image: str | None = None,
+    ) -> ImplementationResult:
+        """
+        Executes a targeted post-implementation refinement loop based on user delivery feedback.
+        """
+        workspace_dir = project_id or task_id
+        effective_image = base_image or self.sandbox.base_image
+        print_agent("meti", f"Refining deliverables based on user feedback: '{refinement_request[:70]}...'")
+
+        prompt = (
+            f"The user reviewed the project deliverables in workspace/{workspace_dir}/ and requested the following refinement:\n"
+            f"\"{refinement_request}\"\n\n"
+            f"Please use your sandbox execution tool to inspect existing files, apply the requested documentation, "
+            f"usability, or code refinements in workspace/{workspace_dir}/, and re-run necessary validation checks. "
+            f"Ensure the project README includes clear, step-by-step instructions and visual flowcharts where helpful."
+        )
+
+        state = ExecutionState(
+            task_id=task_id,
+            phases=phases,
+            validated_phases=[p.phase_name for p in phases],
+            base_image=effective_image,
+            project_id=project_id,
+            workspace_used=True,
+        )
+
+        with agent_status("meti", "Refining documentation & code deliverables..."):
+            result = await self.agent.run(prompt, deps=state)
+
+        implementation_result = result.output
+        if not isinstance(implementation_result, ImplementationResult):
+            implementation_result = ImplementationResult(
+                task_id=task_id,
+                status="success",
+                summary=f"Refinement complete: {refinement_request[:100]}",
+                executed_phases=[p.phase_name for p in phases],
+            )
+
+        self._ensure_workspace_readme(
+            workspace_dir=workspace_dir,
+            task_id=task_id,
+            spec_overview=refinement_request,
+            phases=phases,
+            result=implementation_result,
+        )
+        return implementation_result
+
     def _ensure_workspace_readme(
         self,
         workspace_dir: str,
@@ -307,6 +364,11 @@ class MetiImplementer:
             content = f"""# {task_id}
 
 {spec_overview.strip()}
+
+## Visual Workflow
+```text
+[Input] ───> [Processing Engine] ───> [Validated Output & Tests]
+```
 
 ## Quickstart
 

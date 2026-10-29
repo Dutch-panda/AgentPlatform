@@ -77,7 +77,16 @@ class MetiImplementer:
                 "  If the project processes form inputs, survey responses, or user transactions: (1) create the user-facing entry point "
                 "  (e.g. an auto-generated form builder script, a web form HTML, an interactive CLI input prompt, or a direct submission tester), "
                 "  and (2) ensure the project README clearly answers: 'Where do I enter data? How do I or my users submit inputs?' "
-                "  with explicit links or run commands."
+                "  with explicit links or run commands.\n\n"
+                "TWO-TIER VERIFICATION DELIVERY MANDATE:\n"
+                "1. Tier 1 (Automated Docker Validation):\n"
+                "   - Write pure unit tests with mocked service adapters (e.g., mock Google SpreadsheetApp/FormApp, mock REST API responses, fixtures) "
+                "     so all execution phase validation commands pass 100% cleanly offline inside Docker.\n"
+                "2. Tier 2 (Live Smoke Verification Script & Guided Checklist):\n"
+                "   - Generate a dedicated live smoke-test script (e.g., 'scripts/verify_live.py' or Apps Script 'testDirectSync()') "
+                "     that allows the user to test end-to-end functionality in their real host or cloud environment.\n"
+                "   - In the project README.md, provide an explicit '🧪 Live Verification Checklist' with numbered instructions on how to run "
+                "     the smoke script, what parameters/credentials to set, and what visible outcome to look for (e.g., row appearing in sheet, response code 200)."
             ),
         )
 

@@ -235,6 +235,10 @@ class TechnicalSpec(BaseModel):
         default=None,
         description="Specification of user entry interface (e.g. form fields, CLI prompt, webhook schema)",
     )
+    live_verification_guide: str | None = Field(
+        default=None,
+        description="Step-by-step Tier 2 checklist and instructions for verifying in live environment",
+    )
 
     def __getitem__(self, item: str) -> Any:
         try:

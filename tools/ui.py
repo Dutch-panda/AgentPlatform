@@ -409,6 +409,19 @@ def print_how_to_run(
     if entry_point:
         content_lines.append(f"[bold]Entry:[/bold]      [magenta]{entry_point}[/magenta]")
 
+    live_smoke_cmd = None
+    if (path / "scripts" / "verify_live.py").exists():
+        live_smoke_cmd = "python scripts/verify_live.py"
+    elif (path / "scripts" / "verify.py").exists():
+        live_smoke_cmd = "python scripts/verify.py"
+    elif (path / "scripts" / "verify.js").exists():
+        live_smoke_cmd = "node scripts/verify.js"
+    elif (path / "dist" / "Code.gs").exists():
+        live_smoke_cmd = "Run testDirectSync() in Apps Script"
+
+    if live_smoke_cmd:
+        content_lines.append(f"[bold]Tier 2 Smoke:[/bold] [cyan]{live_smoke_cmd}[/cyan]")
+
     panel = Panel(
         "\n".join(content_lines),
         title="[bold green]🚀 How to Run & Test[/bold green]",
@@ -628,6 +641,10 @@ def print_spec_proposal_card(spec: Any) -> None:
         p_cmd = getattr(p, "validation_command", "")
         content_lines.append(f"  [green]{idx}.[/green] [bold]{escape(p_name)}[/bold] [dim]→ `{escape(p_cmd)}`[/dim]")
 
+    live_guide = getattr(spec, "live_verification_guide", None)
+    if live_guide:
+        content_lines.append(f"\n[bold white]🧪 Tier 2: Live Verification Guide:[/bold white]\n{escape(live_guide)}")
+
     panel = Panel(
         "\n".join(content_lines),
         title=f"[{theme['color']}]{theme['icon']} Taghi Architectural Design Proposal[/{theme['color']}]",
@@ -726,10 +743,34 @@ def prompt_delivery_gate(
     if entry_lines:
         entry_section = "\n[bold white]👉 User Input Surface & Entry Points:[/bold white]\n" + "\n".join(f"  • {e}" for e in entry_lines) + "\n"
 
+    smoke_lines = []
+    if (workspace_path / "scripts" / "verify_live.py").exists():
+        smoke_lines.append("[bold green]Live Smoke Test:[/bold green] python scripts/verify_live.py")
+    elif (workspace_path / "scripts" / "verify.py").exists():
+        smoke_lines.append("[bold green]Live Smoke Test:[/bold green] python scripts/verify.py")
+    if (workspace_path / "scripts" / "verify_live.sh").exists():
+        smoke_lines.append("[bold green]Live Smoke Test:[/bold green] bash scripts/verify_live.sh")
+    if (workspace_path / "scripts" / "verify.js").exists():
+        smoke_lines.append("[bold green]Live Smoke Test:[/bold green] node scripts/verify.js")
+    if (workspace_path / "dist" / "Code.gs").exists():
+        try:
+            code_gs = (workspace_path / "dist" / "Code.gs").read_text(encoding="utf-8", errors="ignore")
+            if "testDirectSync" in code_gs:
+                smoke_lines.append("[bold green]Apps Script Direct Sync:[/bold green] Select 'testDirectSync' in Apps Script editor dropdown & click Run")
+            if "createGoogleForm" in code_gs:
+                smoke_lines.append("[bold green]Apps Script Form Creator:[/bold green] Select 'createGoogleForm' in Apps Script editor dropdown & click Run")
+        except Exception:
+            pass
+
+    smoke_section = ""
+    if smoke_lines:
+        smoke_section = "\n[bold white]🧪 Tier 2: Guided Live Verification Commands:[/bold white]\n" + "\n".join(f"  • {s}" for s in smoke_lines) + "\n"
+
     content = (
         f"[bold white]📦 Deliverables Ready in:[/bold white] [cyan]{escape(rel_ws)}[/cyan]\n"
         f"[bold white]🎯 Implementation Summary:[/bold white] {escape(summary_text)}\n"
-        f"{entry_section}\n"
+        f"{entry_section}"
+        f"{smoke_section}\n"
         "[dim]Review the generated files and instructions. If you would like simpler guides, "
         "visual charts, or code refinements, request them now before final delivery.[/dim]"
     )

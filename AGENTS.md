@@ -31,6 +31,9 @@ Your objective is maximum autonomy within strict security boundaries.
   - Natasha conducts an intent/scope grill interview (up to 10 questions covering entry points, schemas, triggers, edge cases) before final routing.
   - Taghi conducts an architectural grill interview (up to 10 questions covering field schemas, form layout, mock strategy) and presents an architectural review card (`prompt_spec_approval_gate`) requiring user approval before Meti begins implementation.
 - **Shared Contracts**: All stage inputs, outputs, attempts, and checkpoints live in `contracts/`. Do not introduce circular dependencies between agents. `TechnicalSpec` includes `input_interface_spec` and `clarification_questions`.
+- **Two-Tier Verification Architecture**:
+  - `Tier 1 (Automated Docker Sandbox)`: Meti validates all execution phases inside Docker using offline deterministic unit tests and mock service adapters (e.g. mock `SpreadsheetApp`, mock REST responses) with 0 external network dependencies.
+  - `Tier 2 (Guided Live Verification)`: Taghi mandates `live_verification_guide`, and Meti builds a dedicated live smoke script (e.g. `scripts/verify_live.py` or Apps Script `testDirectSync()`) plus an interactive checklist in `README.md` for real-environment verification.
 - **Research-Only Flow**: Tasks with `--research` / `--research-only` or explicit research prompts complete cleanly after Odin without invoking Taghi or Meti.
 - **Meti Architecture**:
   - `agents/meti.py`: Implementation coordinator and Docker tool binding.

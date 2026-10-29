@@ -63,6 +63,14 @@ links: ["[[spec-{task_id}]]", "[[{task_id}-brief]]"]
     for phase_name in result.executed_phases:
         markdown_content += f"- {phase_name}\n"
 
+    validated_count = len(state.validated_phases)
+    total_phases = len(phases)
+    markdown_content += (
+        f"\n## Two-Tier Verification Status\n"
+        f"- **Tier 1 (Automated Docker Sandbox):** {validated_count}/{total_phases} phases verified with offline unit tests and mock adapters.\n"
+        f"- **Tier 2 (Guided Live Verification):** Live smoke-test scripts and real-environment checklist generated for host verification.\n"
+    )
+
     markdown_content += "\n## Validation attempts\n"
     for command in state.interrupted_commands:
         markdown_content += f"\nInterrupted command (outcome unknown): {command!r}\n"

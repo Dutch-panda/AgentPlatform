@@ -60,7 +60,15 @@ class TaghiArchitect:
                 "- Formulate up to 10 targeted 'clarification_questions' (strictly <= 10) for the user to approve before coding. "
                 "  Cover key architectural trade-offs: (1) field schema & column names, (2) UI/form structure and UX options, "
                 "  (3) core libraries/frameworks, (4) failure modes & error handling, and (5) offline mock verification strategy. "
-                "  Every question MUST provide 2 to 4 concrete numbered options with exactly one marked is_default=True representing your recommended architecture."
+                "  Every question MUST provide 2 to 4 concrete numbered options with exactly one marked is_default=True representing your recommended architecture.\n\n"
+                "TWO-TIER VERIFICATION ARCHITECTURE & SPECIFICATION MANDATE:\n"
+                "1. Tier 1 (Automated Docker Validation):\n"
+                "   - Phase 1 MUST define and build the concrete User Input Interface / Surface (e.g., Form generator, HTML web form, or CLI input script).\n"
+                "   - All execution phases executed by Meti inside Docker MUST use deterministic unit tests, fixtures, and mock service adapters (e.g. mock SpreadsheetApp, mock REST API responses).\n"
+                "   - Docker tests validate 100% offline with zero external network or secrets required.\n"
+                "2. Tier 2 (Guided Live Environment Verification):\n"
+                "   - Always populate 'live_verification_guide' with a clear, step-by-step checklist explaining how the user verifies against their real environment (e.g. Google Sheets, live webhooks, real database).\n"
+                "   - Mandate in the final delivery phase that Meti builds a dedicated live smoke-test script (e.g. 'scripts/verify_live.py' or Apps Script 'testDirectSync()') and includes the Live Verification Checklist in the project README.md."
             ),
         )
         # --- BINDING TOOLS TO Taghi ---
@@ -121,6 +129,9 @@ links: ["[[research-{task_id}]]", "[[{task_id}-brief]]"]
 """
         if getattr(spec, "input_interface_spec", None):
             markdown_content += f"\n## User Input Surface & Form Specification\n{spec.input_interface_spec}\n"
+
+        if getattr(spec, "live_verification_guide", None):
+            markdown_content += f"\n## Tier 2: Live Verification Guide\n{spec.live_verification_guide}\n"
 
         markdown_content += "\n## Required Dependencies\n"
         for dep in spec.required_dependencies:

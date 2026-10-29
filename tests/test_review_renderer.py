@@ -71,6 +71,8 @@ def test_render_review_markdown_structure_and_resolutions():
     assert "## Base Image\n`python:3.11-slim`" in markdown
     assert "## Summary\nBuild failed at phase 2" in markdown
     assert "## Executed Phases\n- 1-db\n" in markdown
+    assert "## Two-Tier Verification Status" in markdown
+    assert "**Tier 1 (Automated Docker Sandbox):** 1/4 phases verified" in markdown
 
     # Interrupted command
     assert "Interrupted command (outcome unknown): 'sh interrupted.sh'" in markdown

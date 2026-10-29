@@ -66,5 +66,11 @@
 <li>Natasha defines the input surface in the intent brief; Taghi architects a dedicated execution phase and <code>input_interface_spec</code> (e.g. auto-created Google Form, web form, or interactive CLI); Meti implements and verifies the concrete entry point.</li>
 </ul>
 </li>
+<li><strong>Two-Tier Verification Architecture:</strong>
+<ul>
+<li><strong>Tier 1 (Automated Docker Sandbox):</strong> Meti validates business logic and data mappers inside isolated Docker containers using deterministic local unit tests, fixtures, and mocked service adapters (e.g., mock <code>SpreadsheetApp</code>, simulated REST webhooks).</li>
+<li><strong>Tier 2 (Guided Live Verification):</strong> Meti generates a live smoke-test script (e.g., <code>scripts/verify_live.py</code> or Apps Script <code>testDirectSync()</code>) and an interactive <strong>Live Verification Checklist</strong> in <code>README.md</code> with numbered instructions for verifying against real accounts, spreadsheets, or cloud endpoints.</li>
+</ul>
+</li>
 </ol>
 <footer>Early-stage developer tool · Review generated code and validation results.<br><a href="https://github.com/Dutch-panda/BuildRelay/blob/main/README.md">Source guide on GitHub</a></footer></main><aside class="toc"><nav aria-label="On this page"><p>ON THIS PAGE</p><a href="#how-the-workflow-runs">How the workflow runs</a><a href="#interactive-alignment-and-execution-modes">Interactive alignment and execution modes</a></nav></aside></div></body></html>

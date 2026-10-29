@@ -219,11 +219,20 @@ def search_web(
     tavily_key = os.environ.get("TAVILY_API_KEY")
     if tavily_key:
         try:
-            req_data = json.dumps({"query": q, "max_results": max_results, "include_answer": True}).encode("utf-8")
+            req_data = json.dumps({
+                "api_key": tavily_key,
+                "query": q,
+                "max_results": max_results,
+                "include_answer": True,
+            }).encode("utf-8")
             req = urllib.request.Request(
                 "https://api.tavily.com/search",
                 data=req_data,
-                headers={"Content-Type": "application/json", "Authorization": f"Bearer {tavily_key}"},
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {tavily_key}",
+                    "User-Agent": "BuildRelay/0.1.0",
+                },
             )
             with urllib.request.urlopen(req, timeout=timeout) as resp:
                 data = json.loads(resp.read().decode("utf-8"))

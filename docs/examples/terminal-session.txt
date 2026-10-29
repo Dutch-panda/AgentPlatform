@@ -42,7 +42,7 @@ Exit status: 0
 $ python scripts/validate.py -m "not integration" --disable-warnings
 ........................................................................ [ 36%]
 ................................................................ [ 69%]
-............................................................             [100%]
-196 passed, 8 deselected, 1 warning, 8 subtests passed in 5.08s
+.............................................................            [100%]
+197 passed, 8 deselected, 1 warning, 8 subtests passed in 5.25s
 
 Exit status: 0

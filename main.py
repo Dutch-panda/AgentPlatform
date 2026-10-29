@@ -132,6 +132,7 @@ async def run_task(
     step: bool = False,
     tier: str | None = None,
     lead_overrides: dict[str, Any] | None = None,
+    research_only: bool = False,
 ) -> ImplementationResult:
     # Reject unreadable stage checkpoints before authentication or external work.
     if record.brief is not None:
@@ -257,6 +258,27 @@ async def run_task(
                     record.token_usage["odin"] = research.token_usage
                 ledger.save(record)
             research = ResearchReport.model_validate(record.research)
+
+            # Early completion for research-only tasks
+            is_research_only = (
+                research_only
+                or any(kw in objective.lower() or kw in record.prompt.lower() for kw in [
+                    'just research', 'research-only', 'research only', 'no software implementation', 'just reseach'
+                ])
+            )
+            if is_research_only:
+                record.status = 'COMPLETED'
+                ledger.save(record)
+                print_completion(task_id, True, f"Research report completed successfully.\n\nSummary: {research.summary}")
+                print_token_summary_table(record.token_usage, default_model=default_model)
+                return ImplementationResult(
+                    task_id=task_id,
+                    project_id=project,
+                    status="success",
+                    summary=f"Research complete: {research.summary[:140]}",
+                    executed_phases=[],
+                )
+
             design_context = format_design_context(objective, research)
         else:
             design_context = format_design_context(objective, None)
@@ -378,6 +400,7 @@ async def main() -> None:
     parser.add_argument('--image', help='Docker base image override (e.g. python:3.11-slim)')
     parser.add_argument('-y', '--yes', '--auto', dest='auto', action='store_true', help='Headless mode; accept defaults without interactive prompts')
     parser.add_argument('--step', action='store_true', help='Interactive step gates between each agent lead')
+    parser.add_argument('--research', '--research-only', dest='research_only', action='store_true', help='Complete after research stage; do not execute Taghi or Meti')
     args = parser.parse_args()
 
     # Direct config command: python main.py config or python main.py --config
@@ -436,6 +459,7 @@ async def main() -> None:
                     step=args.step,
                     tier=args.tier,
                     lead_overrides=lead_overrides,
+                    research_only=args.research_only,
                 )
             except (Exception, KeyboardInterrupt, asyncio.CancelledError) as error:
                 record.status = 'FAILED'

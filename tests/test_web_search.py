@@ -157,6 +157,26 @@ def test_search_web_uses_cache(tmp_path):
         assert mock_ddg.call_count == 1
 
 
+def test_search_web_with_tavily_api_key(tmp_path, monkeypatch):
+    monkeypatch.setenv("TAVILY_API_KEY", "tvly-test-key")
+    mock_payload = json.dumps({
+        "results": [
+            {"title": "Tavily Search Result", "url": "https://docs.python.org", "content": "Official Python docs"}
+        ]
+    }).encode("utf-8")
+
+    mock_resp = MagicMock()
+    mock_resp.status = 200
+    mock_resp.read.return_value = mock_payload
+    mock_resp.__enter__.return_value = mock_resp
+
+    with patch("urllib.request.urlopen", return_value=mock_resp):
+        res = search_web("python documentation", cache_dir=tmp_path)
+        assert len(res) == 1
+        assert res[0].title == "Tavily Search Result"
+        assert res[0].url == "https://docs.python.org"
+
+
 # =========================================================================
 # 4. Package Verification (PyPI & npm)
 # =========================================================================

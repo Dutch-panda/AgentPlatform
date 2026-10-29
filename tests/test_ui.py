@@ -366,3 +366,24 @@ def test_prompt_delivery_gate(capsys, tmp_path):
     action, fb = prompt_delivery_gate("task-demo", ws, "All phases passed", auto=False, input_func=lambda _: "q")
     assert action == "quit"
 
+
+def test_prompt_delivery_gate_entry_points(capsys, tmp_path):
+    from tools.ui import prompt_delivery_gate
+
+    ws = tmp_path / "workspace" / "task-form-sync"
+    scripts = ws / "scripts"
+    scripts.mkdir(parents=True, exist_ok=True)
+    (scripts / "setup.js").write_text("// setup", encoding="utf-8")
+    (scripts / "input.js").write_text("// input", encoding="utf-8")
+    dist = ws / "dist"
+    dist.mkdir(parents=True, exist_ok=True)
+    (dist / "Code.gs").write_text("// apps script", encoding="utf-8")
+
+    action, fb = prompt_delivery_gate("task-form-sync", ws, "All phases completed", auto=False, input_func=lambda _: "y")
+    assert action == "confirm"
+    out = capsys.readouterr().out
+    assert "User Input Surface & Entry Points" in out
+    assert "node scripts/setup.js" in out
+    assert "node scripts/input.js" in out
+    assert "dist/Code.gs" in out
+

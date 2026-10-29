@@ -120,3 +120,14 @@ def test_taghi_filters_unexecutable_blocked_phases(tmp_path):
     assert "2-authorized-gate" in note
     assert "RUN_LIVE=1 python live_check.py" in note
 
+
+def test_taghi_and_meti_input_surface_mandate(tmp_path):
+    from agents.meti import MetiImplementer
+    taghi = TaghiArchitect(vault_path=str(tmp_path / "vault"), model_name="test")
+    taghi_prompt = taghi.agent._system_prompts[0] if hasattr(taghi.agent, "_system_prompts") else str(taghi.agent.system_prompt)
+    assert "MANDATORY USER INPUT SURFACE & ENTRY POINT PHASE" in taghi_prompt
+
+    meti = MetiImplementer(model_name="test")
+    meti_prompt = meti.agent._system_prompts[0] if hasattr(meti.agent, "_system_prompts") else str(meti.agent.system_prompt)
+    assert "USER ENTRY POINT & INPUT SURFACE IMPLEMENTATION" in meti_prompt
+

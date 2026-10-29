@@ -47,7 +47,13 @@ class TaghiArchitect:
                 "USER-FIRST DELIVERY & DOCUMENTATION MANDATE:\n"
                 "- The final documentation/delivery phase MUST instruct creation of a project README.md designed for end-users with zero cognitive friction.\n"
                 "- The README.md MUST include: (1) an intuitive visual architecture or data flow diagram (ASCII or Mermaid), (2) a zero-jargon, step-by-step Quickstart guide explaining exactly how to run or deploy the result in simple numbered steps, and (3) concrete examples.\n"
-                "- If a project requires user-provided configuration (e.g. spreadsheet URLs, API tokens, column mappings, or database paths), DO NOT leave passive markdown questionnaires or expect raw JSON editing: mandate an interactive CLI setup script (e.g. 'scripts/setup.js' or 'setup.py') that guides the user interactively in plain English."
+                "- If a project requires user-provided configuration (e.g. spreadsheet URLs, API tokens, column mappings, or database paths), DO NOT leave passive markdown questionnaires or expect raw JSON editing: mandate an interactive CLI setup script (e.g. 'scripts/setup.js' or 'setup.py') that guides the user interactively in plain English.\n\n"
+                "MANDATORY USER INPUT SURFACE & ENTRY POINT PHASE:\n"
+                "- NEVER architect a 'headless receiver' or 'ghost pipeline' that assumes user data arrives from nowhere. "
+                "  If the task involves workflows, form submissions, surveys, transaction inputs, or interactive tools, "
+                "  you MUST dedicate an explicit execution phase to creating the concrete User Input Surface / Entry Point "
+                "  (e.g. an automated form creator script, a lightweight HTML web form, or an interactive CLI input prompt). "
+                "  The phases must build both the data receiver AND the actual input mechanism that a human or client uses to enter data."
             ),
         )
         # --- BINDING TOOLS TO Taghi ---

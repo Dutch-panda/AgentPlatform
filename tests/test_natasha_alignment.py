@@ -210,3 +210,10 @@ def test_prompt_step_gate():
     # Quit
     action3, _ = prompt_step_gate("odin", "Ready for Odin", auto=False, input_func=lambda _: "q")
     assert action3 == "quit"
+
+
+def test_natasha_system_prompt_input_surface_mandate(tmp_path):
+    natasha = NatashaRouter(vault_path=tmp_path / "vault", model_name="test")
+    prompt = natasha.agent._system_prompts[0] if hasattr(natasha.agent, "_system_prompts") else str(natasha.agent.system_prompt)
+    assert "USER INPUT SURFACE & ENTRY POINT MANDATE" in prompt
+    assert "Entry Point / Input Surface" in prompt

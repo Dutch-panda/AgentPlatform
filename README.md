@@ -178,8 +178,12 @@ To eliminate early misunderstandings and prevent wasted model calls, BuildRelay 
    - **Step-by-step mode (`--step`):** Prompts for confirmation before handing off to each lead (Natasha → Odin/Taghi → Meti). If the user pivots during a step gate, downstream checkpoints in `.state/tasks.db` are safely rolled back and re-routed.
 4. **Meti Delivery Confirmation Gate:**
    - Once all implementation phases pass validation, BuildRelay presents an interactive delivery card displaying the workspace deliverables.
+   - Highlights detected **User Input Surfaces & Entry Points** (e.g. Setup wizards, Form sync scripts, Web forms, CLI input tools).
    - Pressing **`[Enter]`** or **`[c]`** accepts the delivery and marks the task complete.
    - Pressing **`[r]`** triggers Meti's live **Refinement Loop** to adjust documentation, add visual flowcharts, or generate setup scripts based on user feedback before finalizing.
+5. **Mandatory User Input Surface & Entry Point:**
+   - Eliminates the "ghost pipeline" trap where an application is built without an interface for entering data.
+   - Natasha defines the input surface in the intent brief; Taghi architects a dedicated execution phase for the input surface (e.g. form generator, web UI, or interactive CLI); Meti implements and verifies the concrete entry point.
 
 ## Token usage and cost analytics
 
@@ -416,7 +420,7 @@ python -m pip install -e '.[test]'
 python scripts/validate.py
 ```
 
-The script runs the platform tests in `tests/` (193 passing unit tests); extra pytest arguments can be appended, for example `python scripts/validate.py -k validation`. Test discovery excludes generated workspaces. The suite uses Pydantic AI `TestModel` for structured outputs and `FunctionModel` for scripted tool calls, blocks real model requests, replaces Docker and graph extraction, and writes artifacts in temporary directories. It covers routing contracts, project links, explicit dependency injection, graph retrieval, source resolution and report references, phase validation, bounded recovery, container isolation invariants, Docker failure feedback, ledger persistence, resume behavior, onboarding, model tiers, token estimates, alignment gates, and mocked web search; it does not assess live model routing quality.
+The script runs the platform tests in `tests/` (196 passing unit tests); extra pytest arguments can be appended, for example `python scripts/validate.py -k validation`. Test discovery excludes generated workspaces. The suite uses Pydantic AI `TestModel` for structured outputs and `FunctionModel` for scripted tool calls, blocks real model requests, replaces Docker and graph extraction, and writes artifacts in temporary directories. It covers routing contracts, project links, explicit dependency injection, graph retrieval, source resolution and report references, phase validation, bounded recovery, container isolation invariants, Docker failure feedback, ledger persistence, resume behavior, onboarding, model tiers, token estimates, alignment gates, and mocked web search; it does not assess live model routing quality.
 
 #### Opt-in Integration Smoke Checks (Real Docker & Graphify)
 

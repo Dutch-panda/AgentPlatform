@@ -48,7 +48,14 @@ class NatashaRouter:
                 "   - next_actions: State the designated next lead and their first deliverable.\n"
                 "2. If the user prompt has technical ambiguity (e.g. database choice, framework variant, or auth strategy), "
                 "   generate 1 to 2 targeted 'clarification_questions' (maximum 3, strictly < 10). "
-                "   Every question MUST have numbered options and exactly one option marked is_default=True."
+                "   Every question MUST have numbered options and exactly one option marked is_default=True.\n\n"
+                "USER INPUT SURFACE & ENTRY POINT MANDATE:\n"
+                "- When the user's request involves data ingestion, workflows, forms, surveys, CLI utilities, or interactive apps, "
+                "  you MUST explicitly define the Entry Point / Input Surface in 'alignment_brief' (under goal or core_features). "
+                "  Declare whether the project will generate an input form/UI (e.g. automated Google Form builder script, web form, or interactive CLI), "
+                "  or connect to an external source. Never frame an app as a headless receiver without specifying how a human or client enters data.\n"
+                "- If the input mechanism is ambiguous (e.g. user mentions 'form responses' but not where the form comes from), "
+                "  include a clarification question asking whether to generate a new entry form/UI or connect an existing form."
             )
         )
         # --- BINDING TOOLS TO Natasha ---

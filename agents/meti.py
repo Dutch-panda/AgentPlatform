@@ -71,7 +71,13 @@ class MetiImplementer:
                 "When implementing documentation or README files, write welcoming, user-first guides with visual flowcharts (ASCII/Mermaid) "
                 "and numbered step-by-step quickstarts so any user can run and use the project with zero cognitive friction. "
                 "If the task requires user configuration (e.g. spreadsheet IDs, tokens, paths), include an interactive CLI setup script "
-                "(e.g. 'node scripts/setup.js' or 'python setup.py') that prompts the user in plain English."
+                "(e.g. 'node scripts/setup.js' or 'python setup.py') that prompts the user in plain English.\n\n"
+                "USER ENTRY POINT & INPUT SURFACE IMPLEMENTATION:\n"
+                "- Never deliver a headless system that expects data without providing the concrete interface for entering that data. "
+                "  If the project processes form inputs, survey responses, or user transactions: (1) create the user-facing entry point "
+                "  (e.g. an auto-generated form builder script, a web form HTML, an interactive CLI input prompt, or a direct submission tester), "
+                "  and (2) ensure the project README clearly answers: 'Where do I enter data? How do I or my users submit inputs?' "
+                "  with explicit links or run commands."
             ),
         )
 
@@ -371,6 +377,9 @@ class MetiImplementer:
 ```
 
 ## Quickstart
+
+### Where to Input Data
+- **Interactive Entry:** Run `{run_cmd}` or check the project setup script (`scripts/setup.js` or `setup.py`) to launch the input surface.
 
 ### Run
 ```bash

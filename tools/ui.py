@@ -618,9 +618,32 @@ def prompt_delivery_gate(
     except ValueError:
         pass
 
+    entry_lines = []
+    if (workspace_path / "scripts" / "setup.js").exists():
+        entry_lines.append("[bold cyan]Setup Wizard:[/bold cyan] node scripts/setup.js")
+    elif (workspace_path / "setup.py").exists():
+        entry_lines.append("[bold cyan]Setup Wizard:[/bold cyan] python setup.py")
+    if (workspace_path / "scripts" / "input.js").exists():
+        entry_lines.append("[bold cyan]Interactive Entry CLI:[/bold cyan] node scripts/input.js")
+    elif (workspace_path / "input.py").exists():
+        entry_lines.append("[bold cyan]Interactive Entry CLI:[/bold cyan] python input.py")
+    if (workspace_path / "dist" / "Code.gs").exists():
+        entry_lines.append("[bold cyan]Google Apps Script Engine:[/bold cyan] dist/Code.gs")
+    if (workspace_path / "form.html").exists():
+        entry_lines.append("[bold cyan]Web Entry Form:[/bold cyan] form.html")
+    elif (workspace_path / "index.html").exists():
+        entry_lines.append("[bold cyan]Web Interface:[/bold cyan] index.html")
+    elif (workspace_path / "main.py").exists():
+        entry_lines.append("[bold cyan]Application Entry:[/bold cyan] python main.py")
+
+    entry_section = ""
+    if entry_lines:
+        entry_section = "\n[bold white]👉 User Input Surface & Entry Points:[/bold white]\n" + "\n".join(f"  • {e}" for e in entry_lines) + "\n"
+
     content = (
         f"[bold white]📦 Deliverables Ready in:[/bold white] [cyan]{escape(rel_ws)}[/cyan]\n"
-        f"[bold white]🎯 Implementation Summary:[/bold white] {escape(summary_text)}\n\n"
+        f"[bold white]🎯 Implementation Summary:[/bold white] {escape(summary_text)}\n"
+        f"{entry_section}\n"
         "[dim]Review the generated files and instructions. If you would like simpler guides, "
         "visual charts, or code refinements, request them now before final delivery.[/dim]"
     )

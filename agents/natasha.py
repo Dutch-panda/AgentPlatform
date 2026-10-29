@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 import asyncio
 import re
 import uuid
-from typing import Literal
+from typing import Any, Callable, Literal
 from pathlib import Path
 from datetime import datetime
 from pydantic_ai import Agent

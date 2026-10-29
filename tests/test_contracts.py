@@ -361,3 +361,41 @@ def test_spec_sanitizes_unexecutable_phases():
     assert "3-authorized-source-integration-gate" in spec.architecture_overview
     assert "RUN_AUTHORIZED_INTEGRATION=1" in spec.architecture_overview
 
+
+def test_grill_clarification_contracts():
+    from contracts import ClarificationOption, ClarificationQuestion, TechnicalSpec
+
+    opt = ClarificationOption(
+        key="1",
+        label="Auto Google Form",
+        description="Generates linked Google Form",
+        is_default=True,
+    )
+    assert opt.key == "1"
+    assert opt.description == "Generates linked Google Form"
+    assert opt.is_default is True
+
+    q = ClarificationQuestion(
+        id="q_entry",
+        question="Select entry mechanism",
+        category="User Input",
+        options=[opt],
+        custom_response="Custom portal",
+    )
+    assert q.id == "q_entry"
+    assert q.category == "User Input"
+    assert q.custom_response == "Custom portal"
+
+    spec = TechnicalSpec(
+        task_id="task-spec-contracts",
+        architecture_overview="Overview",
+        required_dependencies=["npm:@google/clasp"],
+        base_image="node:18-bullseye-slim",
+        phases=[],
+        clarification_questions=[q],
+        input_interface_spec="Google Form with fields: Date, Amount",
+    )
+    assert len(spec.clarification_questions) == 1
+    assert spec.clarification_questions[0].id == "q_entry"
+    assert spec.input_interface_spec == "Google Form with fields: Date, Amount"
+

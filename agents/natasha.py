@@ -39,16 +39,17 @@ class NatashaRouter:
                 "and formulate core research questions. Decide "
                 "which lead ('odin', 'taghi', or 'meti') the task is designated for. "
                 "Always generate a concise, semantic kebab-case slug (2-4 core words, omitting stop words like 'build', 'create', 'a', 'the').\n\n"
-                "INTENT ALIGNMENT & CLARIFICATION RULES:\n"
+                "INTENT ALIGNMENT & GRILL-ME INTERVIEW RULES:\n"
                 "1. Always populate 'alignment_brief' with exactly 5 structured sentences:\n"
                 "   - goal: Exactly what is being built.\n"
                 "   - core_features: Key functionality included in scope.\n"
                 "   - tech_stack: Frameworks, databases, and container runtime image.\n"
                 "   - exclusions: Explicitly state what is deferred or intentionally omitted.\n"
                 "   - next_actions: State the designated next lead and their first deliverable.\n"
-                "2. If the user prompt has technical ambiguity (e.g. database choice, framework variant, or auth strategy), "
-                "   generate 1 to 2 targeted 'clarification_questions' (maximum 3, strictly < 10). "
-                "   Every question MUST have numbered options and exactly one option marked is_default=True.\n\n"
+                "2. Conduct an active 'Grill-Me' alignment interview by generating targeted 'clarification_questions' (up to 10 questions, strictly <= 10). "
+                "   Focus on establishing shared vocabulary, clarifying business objectives, data schemas/fields, operational triggers, "
+                "   failure modes, and user entry points. Categorize each question (e.g. category='User Input', 'Schema', 'Operational Scope', or 'Edge Cases'). "
+                "   Every question MUST provide 2 to 4 concrete numbered options with exactly one marked is_default=True representing your recommended choice.\n\n"
                 "USER INPUT SURFACE & ENTRY POINT MANDATE:\n"
                 "- When the user's request involves data ingestion, workflows, forms, surveys, CLI utilities, or interactive apps, "
                 "  you MUST explicitly define the Entry Point / Input Surface in 'alignment_brief' (under goal or core_features). "
@@ -140,6 +141,37 @@ class NatashaRouter:
         self._ensure_alignment_brief(new_brief, user_feedback)
         await self._write_brief_note(new_brief, project)
         return new_brief
+
+    async def conduct_grill_session(
+        self,
+        brief: TaskBrief,
+        auto: bool = False,
+        input_func: Any = None,
+        project_id: str | None = None,
+    ) -> tuple[TaskBrief, bool]:
+        """Run Natasha's interactive grill-me alignment interview and realign intent if selections change."""
+        from tools.grill import has_non_default_answers, run_grill_session, format_grill_answers_for_prompt
+
+        if not brief.clarification_questions:
+            return brief, False
+
+        answers, quit_requested = run_grill_session(
+            brief.clarification_questions,
+            agent_name="natasha",
+            title="🎯 Natasha Intent & Operational Scope Grill",
+            auto=auto,
+            input_func=input_func,
+            max_questions=10,
+        )
+        if quit_requested:
+            return brief, True
+
+        if not auto and has_non_default_answers(brief.clarification_questions, answers):
+            formatted_decisions = format_grill_answers_for_prompt(answers, brief.clarification_questions)
+            realigned_brief = await self.realign_intent(brief, formatted_decisions, project_id=project_id)
+            return realigned_brief, False
+
+        return brief, False
 
     async def _write_brief_note(self, task_brief: TaskBrief, project: ProjectContext) -> Path:
         timestamp = datetime.now().strftime("%Y-%m-%d")

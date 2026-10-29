@@ -25,8 +25,13 @@ Your objective is maximum autonomy within strict security boundaries.
 # BuildRelay Project Guidelines for Antigravity (AGY)
 
 ## Architecture & Conventions
-- **Sequential 4-lead flow**: Natasha (Routing) → Odin (Research) → Taghi (Architecture) → Meti (Phased Docker Execution).
-- **Shared Contracts**: All stage inputs, outputs, attempts, and checkpoints live in `contracts/`. Do not introduce circular dependencies between agents.
+- **Sequential 4-lead flow**: Natasha (Routing & Alignment) → Odin (Research) → Taghi (Architecture & Review) → Meti (Phased Docker Execution).
+- **Interactive Grill-Me Alignment**:
+  - `tools/grill.py`: Unified multi-choice and open-ended interview engine with quick keyboard shortcuts (`[Enter]` for default, `[1, 2...]` to pick, `[c]` for custom text, `[a]` to accept all remaining, `[q]` to quit).
+  - Natasha conducts an intent/scope grill interview (up to 10 questions covering entry points, schemas, triggers, edge cases) before final routing.
+  - Taghi conducts an architectural grill interview (up to 10 questions covering field schemas, form layout, mock strategy) and presents an architectural review card (`prompt_spec_approval_gate`) requiring user approval before Meti begins implementation.
+- **Shared Contracts**: All stage inputs, outputs, attempts, and checkpoints live in `contracts/`. Do not introduce circular dependencies between agents. `TechnicalSpec` includes `input_interface_spec` and `clarification_questions`.
+- **Research-Only Flow**: Tasks with `--research` / `--research-only` or explicit research prompts complete cleanly after Odin without invoking Taghi or Meti.
 - **Meti Architecture**:
   - `agents/meti.py`: Implementation coordinator and Docker tool binding.
   - `agents/execution_policy.py`: Phase validation ordering, retry budgets (3 attempts per phase per run), recovery prompts, and ground-truth result finalization.
@@ -39,7 +44,7 @@ Your objective is maximum autonomy within strict security boundaries.
 
 ## Model Configuration & Research
 - Per-lead models are selected through `tools/model_tiers.py`; onboarding lives in `tools/onboarding.py`.
-- Natasha and Odin use web search snippets from `tools/web_search.py`; Odin can query PyPI/npm and records search-result URLs.
+- Natasha and Odin use web search snippets from `tools/web_search.py`; queries prioritize Tavily API (`TAVILY_API_KEY` in `.env`) with automated fallback to DuckDuckGo HTML scraping. Odin can query PyPI/npm and records search-result URLs.
 - Odin has three search calls per research invocation. Registry lookups and Natasha searches are outside that budget.
 - URL checks do not resolve DNS or revalidate redirects. Page fetching is a helper, not a registered agent tool. Registry connectivity failures do not establish successful verification.
 - Token costs are estimates from bundled rates; SDK cache settings do not guarantee provider caching.

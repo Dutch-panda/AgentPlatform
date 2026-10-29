@@ -53,7 +53,14 @@ class TaghiArchitect:
                 "  If the task involves workflows, form submissions, surveys, transaction inputs, or interactive tools, "
                 "  you MUST dedicate an explicit execution phase to creating the concrete User Input Surface / Entry Point "
                 "  (e.g. an automated form creator script, a lightweight HTML web form, or an interactive CLI input prompt). "
-                "  The phases must build both the data receiver AND the actual input mechanism that a human or client uses to enter data."
+                "  The phases must build both the data receiver AND the actual input mechanism that a human or client uses to enter data.\n\n"
+                "ARCHITECTURAL GRILL-ME & USER INTERFACE APPROVAL:\n"
+                "- Always populate 'input_interface_spec' with the concrete layout/schema of the user entry interface "
+                "  (e.g., list of form fields, data types, validation rules, dropdown options, or CLI prompt questions).\n"
+                "- Formulate up to 10 targeted 'clarification_questions' (strictly <= 10) for the user to approve before coding. "
+                "  Cover key architectural trade-offs: (1) field schema & column names, (2) UI/form structure and UX options, "
+                "  (3) core libraries/frameworks, (4) failure modes & error handling, and (5) offline mock verification strategy. "
+                "  Every question MUST provide 2 to 4 concrete numbered options with exactly one marked is_default=True representing your recommended architecture."
             ),
         )
         # --- BINDING TOOLS TO Taghi ---
@@ -111,9 +118,11 @@ links: ["[[research-{task_id}]]", "[[{task_id}-brief]]"]
 
 {project.body}## Architecture Overview
 {spec.architecture_overview}
-
-## Required Dependencies
 """
+        if getattr(spec, "input_interface_spec", None):
+            markdown_content += f"\n## User Input Surface & Form Specification\n{spec.input_interface_spec}\n"
+
+        markdown_content += "\n## Required Dependencies\n"
         for dep in spec.required_dependencies:
             markdown_content += f"- {dep}\n"
 
@@ -128,3 +137,49 @@ links: ["[[research-{task_id}]]", "[[{task_id}-brief]]"]
 
         await update_vault_graph(self.graph_manager, note_filename)
         return spec
+
+    async def conduct_architectural_review(
+        self,
+        spec: TechnicalSpec,
+        task_id: str,
+        design_context: str,
+        auto: bool = False,
+        input_func: Any = None,
+        project_id: str | None = None,
+    ) -> tuple[TechnicalSpec, bool]:
+        """
+        Run Taghi's architectural grill interview and review approval gate before Meti implements.
+        Returns: (approved_or_revised_spec, quit_requested)
+        """
+        from tools.grill import has_non_default_answers, run_grill_session, format_grill_answers_for_prompt
+        from tools.ui import prompt_spec_approval_gate
+
+        current_spec = spec
+        while True:
+            # Step 1: Run architectural grill questions if present
+            if getattr(current_spec, "clarification_questions", None):
+                answers, quit_requested = run_grill_session(
+                    current_spec.clarification_questions,
+                    agent_name="taghi",
+                    title="🏛 Taghi Architecture & Schema Grill",
+                    auto=auto,
+                    input_func=input_func,
+                    max_questions=10,
+                )
+                if quit_requested:
+                    return current_spec, True
+
+                if not auto and has_non_default_answers(current_spec.clarification_questions, answers):
+                    formatted_decisions = format_grill_answers_for_prompt(answers, current_spec.clarification_questions)
+                    updated_context = f"{design_context}\n\n{formatted_decisions}"
+                    current_spec = await self.create_specification(task_id, updated_context, project_id=project_id)
+
+            # Step 2: Present architectural review card and prompt for user approval
+            action, feedback = prompt_spec_approval_gate(current_spec, auto=auto, input_func=input_func)
+            if action == "quit":
+                return current_spec, True
+            elif action == "revise" and feedback:
+                updated_context = f"{design_context}\n\nUser Architectural Revisions / Feedback:\n{feedback}"
+                current_spec = await self.create_specification(task_id, updated_context, project_id=project_id)
+            else:
+                return current_spec, False

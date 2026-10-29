@@ -3,15 +3,30 @@
 <body><a class="skip" href="#content">Skip to content</a><header><a class="brand" href="index.html"><img src="brand/logo.svg" alt="" width="32" height="32">BuildRelay <span>Docs</span></a><a href="https://github.com/Dutch-panda/BuildRelay">GitHub ↗</a></header><div class="layout"><aside class="sidebar"><details open><summary>Documentation</summary><nav aria-label="Documentation"><p>GET STARTED & BUILD</p><a href="index.html">Introduction</a><a href="example.html">Terminal example</a><a href="quickstart.html">Quick start</a><a href="workflow.html" aria-current="page">Workflow &amp; alignment</a><a href="configuration.html">Models &amp; configuration</a><a href="execution.html">Execution &amp; web research</a><a href="projects.html">Projects &amp; memory</a><a href="resume.html">Resume a task</a><a href="architecture.html">Architecture</a><a href="testing.html">Testing &amp; integration</a><a href="limitations.html">Limits &amp; security</a><a href="troubleshooting.html">Troubleshooting</a></nav></details></aside><main id="content"><div class="breadcrumb">BuildRelay / Workflow &amp; alignment</div><h1>Workflow &amp; alignment</h1><h2 id="how-the-workflow-runs">How the workflow runs</h2>
 <img src="diagrams/workflow.svg" alt="Natasha routes requests through research, design, or direct implementation, ending with Meti and validation." width="760">
 <ul>
-<li><strong>Natasha — coordinator:</strong> produces a typed task brief, a 5-sentence intent alignment brief, and chooses the next lead. Prompts with a low-friction clarification wizard for ambiguous requirements, supports mid-way intent pivots, queries existing vault connections, and can look up official library names online.</li>
-<li><strong>Odin — researcher:</strong> queries vault graph metadata and external web documentation / package registries (PyPI, npm) to produce technical findings and recommended stacks. Research notes record resolved vault notes and external search-result URLs. URL checks reject selected local hostnames and literal private IP addresses; Odin has a three-call search budget per research invocation.</li>
-<li><strong>Taghi — architect:</strong> produces an architecture overview, dependencies, and ordered execution phases with explicit validation commands. Phases are constrained to actionable sandbox validation; conditional gates or unprovided external credentials are documented in architecture overview notes rather than active execution phases.</li>
+<li><strong>Natasha — coordinator:</strong> produces a typed task brief, a 5-sentence intent alignment brief, and conducts an interactive Grill-Me interview (up to 10 questions) to clarify goals, entry mechanisms, and edge cases before routing. Prompts with a low-friction clarification wizard, supports mid-way intent pivots, queries existing vault connections, and can look up official library names online.</li>
+<li><strong>Odin — researcher:</strong> queries vault graph metadata and external web documentation / package registries (PyPI, npm, Tavily API) to produce technical findings and recommended stacks. Research notes record resolved vault notes and external search-result URLs. Tasks marked with <code>--research</code> / <code>--research-only</code> complete cleanly after Odin without invoking design or implementation.</li>
+<li><strong>Taghi — architect:</strong> produces an architecture overview, user input surface specification (<code>input_interface_spec</code>), dependencies, and ordered execution phases with explicit validation commands. Conducts an architectural grill interview and presents an interactive approval gate before Meti implements. Phases are constrained to actionable sandbox validation; conditional gates or unprovided external credentials are documented in architecture overview notes rather than active execution phases.</li>
 <li><strong>Meti — implementer:</strong> writes code through Docker commands with live progress spinners and validates phases in order. Generates a workspace <code>README.md</code> with run/test instructions, logs execution details to <code>.state/task.log</code>, and renders a file tree and <code>How to Run &amp; Test</code> banner. A reported success is downgraded to failure if any phase remains unvalidated.</li>
 </ul>
-<p>Agents run sequentially along the selected route. Research requests continue through design and implementation; design requests continue through implementation.</p>
+<p>Agents run sequentially along the selected route. Research requests continue through design and implementation; design requests continue through implementation. Research-only tasks complete immediately after Odin.</p>
 <h2 id="interactive-alignment-and-execution-modes">Interactive alignment and execution modes</h2>
-<p>To eliminate early misunderstandings and prevent wasted model calls, BuildRelay provides an interactive alignment gate:</p>
+<p>To eliminate early misunderstandings and prevent wasted model calls, BuildRelay provides an interactive alignment and review pipeline:</p>
 <ol>
+<li><strong>Interactive &quot;Grill-Me&quot; Alignment Sessions (Natasha &amp; Taghi):</strong>
+<ul>
+<li><strong>Natasha Intent &amp; Scope Grill:</strong> Evaluates the request and conducts a targeted interview (up to 10 questions) exploring operational goals, user entry methods, frequency/triggers, schemas, and operational edge cases.</li>
+<li><strong>Taghi Architecture &amp; Schema Grill:</strong> Before finalizing specifications, conducts an interview (up to 10 questions) covering concrete column/field schemas, form layout, component trade-offs, and offline mock strategies.</li>
+<li><strong>Ergonomic Terminal Navigation:</strong>
+<ul>
+<li>Pressing <strong><code>[Enter]</code></strong> immediately accepts the recommended default.</li>
+<li>Pressing <strong><code>[1, 2...]</code></strong> selects a specific numbered option.</li>
+<li>Pressing <strong><code>[c]</code></strong> enters custom requirements, or type freeform text directly at the prompt.</li>
+<li>Pressing <strong><code>[a]</code></strong> accepts all remaining defaults without interruption.</li>
+<li>Pressing <strong><code>[q]</code></strong> cancels execution cleanly.</li>
+</ul>
+</li>
+</ul>
+</li>
 <li><strong>Natasha's 5-Sentence Intent Brief:</strong>
 <ul>
 <li><strong>Goal:</strong> Exactly what is being built.</li>
@@ -21,19 +36,20 @@
 <li><strong>Next Steps:</strong> Target lead and first deliverable.</li>
 </ul>
 </li>
-<li><strong>Smart Clarification Wizard:</strong>
+<li><strong>Taghi Architectural Review &amp; Approval Gate:</strong>
 <ul>
-<li>If technical ambiguity is detected, Natasha presents 1–2 targeted multiple-choice questions with preselected defaults.</li>
-<li>Pressing <strong><code>[Enter]</code></strong> immediately confirms all recommended defaults with zero friction.</li>
-<li>Pressing an option number or letter (e.g. <strong><code>[2]</code></strong> or <strong><code>[b]</code></strong>) directly selects that choice.</li>
-<li>Pressing <strong><code>[e]</code></strong> allows typing a custom clarification or pivoting intent.</li>
+<li>Taghi presents a detailed architecture review card displaying the system design, the concrete user input interface specification (<code>input_interface_spec</code>), required dependencies, and ordered phases.</li>
+<li>Pressing <strong><code>[Y/enter]</code></strong> approves the architecture and authorizes Meti to begin implementation.</li>
+<li>Pressing <strong><code>[r]</code></strong> allows requesting revisions to schemas, fields, or phases, triggering Taghi to regenerate the specification with user feedback.</li>
+<li>Pressing <strong><code>[q]</code></strong> aborts before container code generation.</li>
 </ul>
 </li>
 <li><strong>Execution Flags:</strong>
 <ul>
-<li><strong>Default interactive:</strong> Runs the alignment gate before initiating research or design.</li>
-<li><strong>Headless mode (<code>-y</code>, <code>--yes</code>, <code>--auto</code>):</strong> Automatically accepts recommended defaults without terminal prompts; ideal for scripting and CI.</li>
+<li><strong>Default interactive:</strong> Runs the alignment interviews and approval gates before initiating research, design, or implementation.</li>
+<li><strong>Headless mode (<code>-y</code>, <code>--yes</code>, <code>--auto</code>):</strong> Automatically accepts recommended defaults without terminal prompts; ideal for scripting, background tasks, and CI.</li>
 <li><strong>Step-by-step mode (<code>--step</code>):</strong> Prompts for confirmation before handing off to each lead (Natasha → Odin/Taghi → Meti). If the user pivots during a step gate, downstream checkpoints in <code>.state/tasks.db</code> are safely rolled back and re-routed.</li>
+<li><strong>Research-only mode (<code>--research</code>, <code>--research-only</code>):</strong> Completes immediately after Odin's research report and web citations, without executing Taghi or Meti.</li>
 </ul>
 </li>
 <li><strong>Meti Delivery Confirmation Gate:</strong>
@@ -47,7 +63,7 @@
 <li><strong>Mandatory User Input Surface &amp; Entry Point:</strong>
 <ul>
 <li>Eliminates the &quot;ghost pipeline&quot; trap where an application is built without an interface for entering data.</li>
-<li>Natasha defines the input surface in the intent brief; Taghi architects a dedicated execution phase for the input surface (e.g. form generator, web UI, or interactive CLI); Meti implements and verifies the concrete entry point.</li>
+<li>Natasha defines the input surface in the intent brief; Taghi architects a dedicated execution phase and <code>input_interface_spec</code> (e.g. auto-created Google Form, web form, or interactive CLI); Meti implements and verifies the concrete entry point.</li>
 </ul>
 </li>
 </ol>

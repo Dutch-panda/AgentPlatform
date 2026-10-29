@@ -98,6 +98,7 @@ class ClarificationOption(BaseModel):
 
     key: str = Field(description="Option number or identifier, e.g. '1', '2'")
     label: str = Field(description="Description of the option, e.g. 'SQLite (local file)'")
+    description: str | None = Field(default=None, description="Optional detail or trade-off note for this option")
     is_default: bool = Field(default=False, description="Whether this is the recommended default option")
 
 
@@ -106,8 +107,10 @@ class ClarificationQuestion(BaseModel):
 
     id: str = Field(description="Unique question identifier, e.g. 'db_choice'")
     question: str = Field(description="Short question text, e.g. 'Preferred Database'")
+    category: str | None = Field(default=None, description="Category or scope, e.g. 'User Input', 'Schema', 'Failure Mode'")
     options: list[ClarificationOption] = Field(default_factory=list, description="Available choices (strictly < 10)")
     selected_option: str | None = Field(default=None, description="The selected option key")
+    custom_response: str | None = Field(default=None, description="Freeform custom response supplied by user if provided")
 
 
 class AlignmentBrief(BaseModel):
@@ -224,6 +227,14 @@ class TechnicalSpec(BaseModel):
         description="Docker base image matching the stack (e.g. 'python:3.11-slim' or 'node:18-bullseye-slim')"
     )
     phases: list[ExecutionPhase] = Field(description="Ordered sequential phases for Meti to execute")
+    clarification_questions: list[ClarificationQuestion] = Field(
+        default_factory=list,
+        description="Targeted architectural/schema grill questions for user alignment",
+    )
+    input_interface_spec: str | None = Field(
+        default=None,
+        description="Specification of user entry interface (e.g. form fields, CLI prompt, webhook schema)",
+    )
 
     def __getitem__(self, item: str) -> Any:
         try:

@@ -217,3 +217,179 @@ def test_natasha_system_prompt_input_surface_mandate(tmp_path):
     prompt = natasha.agent._system_prompts[0] if hasattr(natasha.agent, "_system_prompts") else str(natasha.agent.system_prompt)
     assert "USER INPUT SURFACE & ENTRY POINT MANDATE" in prompt
     assert "Entry Point / Input Surface" in prompt
+
+
+@pytest.mark.anyio
+async def test_natasha_conduct_grill_session_auto(tmp_path):
+    natasha = NatashaRouter(vault_path=tmp_path / "vault", model_name="test")
+    brief = TaskBrief(
+        task_id="task-grill-auto",
+        title="Auto Grill",
+        objective="Objective",
+        slug="auto-grill",
+        target_lead="taghi",
+        research_questions=[],
+        clarification_questions=[
+            ClarificationQuestion(
+                id="entry",
+                question="Data Entry Method",
+                category="User Input",
+                options=[
+                    ClarificationOption(key="1", label="Google Form", is_default=True),
+                    ClarificationOption(key="2", label="CLI Prompt", is_default=False),
+                ],
+            )
+        ],
+    )
+    res_brief, quit_req = await natasha.conduct_grill_session(brief, auto=True)
+    assert quit_req is False
+    assert res_brief.task_id == "task-grill-auto"
+
+
+@pytest.mark.anyio
+async def test_natasha_conduct_grill_session_interactive_custom(tmp_path):
+    from pydantic_ai.models.test import TestModel
+
+    mock_realigned_payload = dict(
+        task_id="task-grill",
+        title="Custom Entry Workflow",
+        objective="Realigned with custom entry",
+        slug="custom-entry",
+        target_lead="taghi",
+        research_questions=[],
+        alignment_brief=dict(
+            goal="Custom Entry Workflow",
+            core_features="Automated Google Form creation",
+            tech_stack="Google Apps Script",
+            exclusions="None",
+            next_actions="Taghi architects form fields",
+        ),
+    )
+    natasha = NatashaRouter(
+        vault_path=tmp_path / "vault",
+        model_name=TestModel(call_tools=[], custom_output_args=mock_realigned_payload),
+    )
+    brief = TaskBrief(
+        task_id="task-grill",
+        title="Original Task",
+        objective="Original Objective",
+        slug="orig-task",
+        target_lead="taghi",
+        research_questions=[],
+        clarification_questions=[
+            ClarificationQuestion(
+                id="entry",
+                question="Data Entry Method",
+                category="User Input",
+                options=[
+                    ClarificationOption(key="1", label="Google Form", is_default=True),
+                    ClarificationOption(key="2", label="CLI Prompt", is_default=False),
+                ],
+            )
+        ],
+    )
+    inputs = ["Custom Web Portal"]
+    res_brief, quit_req = await natasha.conduct_grill_session(
+        brief, auto=False, input_func=lambda _: inputs.pop(0)
+    )
+    assert quit_req is False
+    assert res_brief.title == "Custom Entry Workflow"
+
+
+@pytest.mark.anyio
+async def test_taghi_conduct_architectural_review(tmp_path):
+    from agents.taghi import ExecutionPhase, TaghiArchitect, TechnicalSpec
+
+    taghi = TaghiArchitect(vault_path=tmp_path / "vault", model_name="test")
+    spec = TechnicalSpec(
+        task_id="task-arch-review",
+        architecture_overview="Modular Architecture",
+        input_interface_spec="Google Form with Date, Amount, Category",
+        required_dependencies=[],
+        base_image="python:3.11-slim",
+        phases=[
+            ExecutionPhase(
+                phase_name="1-setup",
+                instructions="Setup module",
+                validation_command="python -m pytest",
+            )
+        ],
+        clarification_questions=[
+            ClarificationQuestion(
+                id="fields",
+                question="Approve form fields",
+                category="Schema",
+                options=[
+                    ClarificationOption(key="1", label="Approve default fields", is_default=True),
+                    ClarificationOption(key="2", label="Add custom fields", is_default=False),
+                ],
+            )
+        ],
+    )
+    # User hits Enter for question (default 1), then 'y' for spec approval gate
+    inputs = ["", "y"]
+    res_spec, quit_req = await taghi.conduct_architectural_review(
+        spec,
+        task_id="task-arch-review",
+        design_context="Design context",
+        auto=False,
+        input_func=lambda _: inputs.pop(0),
+    )
+    assert quit_req is False
+    assert res_spec.task_id == "task-arch-review"
+    assert res_spec.input_interface_spec == "Google Form with Date, Amount, Category"
+
+
+@pytest.mark.anyio
+async def test_taghi_conduct_architectural_review_with_revision(tmp_path):
+    from pydantic_ai.models.test import TestModel
+    from agents.taghi import ExecutionPhase, TaghiArchitect, TechnicalSpec
+
+    mock_revised_spec = dict(
+        task_id="task-arch-revised",
+        architecture_overview="Revised Architecture with Email Alerts",
+        input_interface_spec="Google Form with Date, Amount, Category, ReceiptUpload",
+        required_dependencies=["npm:@google/clasp"],
+        base_image="node:18-bullseye-slim",
+        phases=[
+            dict(
+                phase_name="1-user-form",
+                instructions="Build user form with receipt upload",
+                validation_command="node scripts/test.js",
+            )
+        ],
+    )
+    taghi = TaghiArchitect(
+        vault_path=tmp_path / "vault",
+        model_name=TestModel(call_tools=[], custom_output_args=mock_revised_spec),
+    )
+    initial_spec = TechnicalSpec(
+        task_id="task-arch-revised",
+        architecture_overview="Initial Architecture",
+        input_interface_spec="Google Form with Date, Amount",
+        required_dependencies=[],
+        base_image="node:18-bullseye-slim",
+        phases=[],
+    )
+    # User requests revision 'r', describes revision, then confirms revised spec 'y'
+    inputs = ["r", "Please add receipt upload to form", "y"]
+    res_spec, quit_req = await taghi.conduct_architectural_review(
+        initial_spec,
+        task_id="task-arch-revised",
+        design_context="Design context",
+        auto=False,
+        input_func=lambda _: inputs.pop(0),
+    )
+    assert quit_req is False
+    assert res_spec.task_id == "task-arch-revised"
+    assert res_spec.input_interface_spec == "Google Form with Date, Amount, Category, ReceiptUpload"
+    assert "Revised Architecture" in res_spec.architecture_overview
+
+
+def test_taghi_system_prompt_architectural_grill_mandate(tmp_path):
+    from agents.taghi import TaghiArchitect
+
+    taghi = TaghiArchitect(vault_path=tmp_path / "vault", model_name="test")
+    prompt = taghi.agent._system_prompts[0] if hasattr(taghi.agent, "_system_prompts") else str(taghi.agent.system_prompt)
+    assert "ARCHITECTURAL GRILL-ME & USER INTERFACE APPROVAL" in prompt
+    assert "input_interface_spec" in prompt

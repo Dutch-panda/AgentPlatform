@@ -598,6 +598,92 @@ def prompt_step_gate(
     return "pivot", choice
 
 
+def print_spec_proposal_card(spec: Any) -> None:
+    """Render Taghi's full architectural proposal, input surface, and phase roadmap."""
+    theme = _get_theme("taghi")
+    overview = getattr(spec, "architecture_overview", "")
+    clean_overview = "\n".join(
+        line for line in overview.splitlines()
+        if not line.startswith("Create your project directory at workspace/")
+        and not line.startswith("All sandbox commands start in /app/workspace/")
+    ).strip()
+
+    input_spec = getattr(spec, "input_interface_spec", None)
+    base_image = getattr(spec, "base_image", None) or "python:3.11-slim"
+    phases = getattr(spec, "phases", []) or []
+    deps = getattr(spec, "required_dependencies", []) or []
+
+    content_lines = [
+        f"[bold white]🏗 Architecture Overview:[/bold white]\n{escape(clean_overview[:600]) + ('...' if len(clean_overview) > 600 else '')}\n",
+    ]
+    if input_spec:
+        content_lines.append(f"[bold white]👉 User Input Surface & Form Specification:[/bold white]\n{escape(input_spec)}\n")
+    if deps:
+        content_lines.append(f"[bold white]📦 Dependencies:[/bold white] [cyan]{escape(', '.join(deps))}[/cyan]")
+    content_lines.append(f"[bold white]🐳 Base Runtime Image:[/bold white] [cyan]{escape(base_image)}[/cyan]\n")
+
+    content_lines.append(f"[bold white]🚀 Execution Roadmap ({len(phases)} phases):[/bold white]")
+    for idx, p in enumerate(phases, start=1):
+        p_name = getattr(p, "phase_name", str(p))
+        p_cmd = getattr(p, "validation_command", "")
+        content_lines.append(f"  [green]{idx}.[/green] [bold]{escape(p_name)}[/bold] [dim]→ `{escape(p_cmd)}`[/dim]")
+
+    panel = Panel(
+        "\n".join(content_lines),
+        title=f"[{theme['color']}]{theme['icon']} Taghi Architectural Design Proposal[/{theme['color']}]",
+        title_align="left",
+        border_style="blue",
+        padding=(1, 2),
+    )
+    console.print()
+    console.print(panel)
+
+
+def prompt_spec_approval_gate(
+    spec: Any,
+    auto: bool = False,
+    input_func: Callable[[str], str] | None = None,
+) -> tuple[str, str | None]:
+    """
+    Approval gate for Taghi's architectural specification before Meti starts coding.
+    Returns: ('confirm' | 'revise' | 'quit', feedback_text)
+    """
+    import sys
+
+    print_spec_proposal_card(spec)
+
+    ask = input_func or input
+    if auto or (input_func is None and not sys.stdin.isatty()):
+        return "confirm", None
+
+    console.print(
+        "[bold]👉 Architecture Approval Action:[/bold] "
+        "[green]\\[Y/enter][/green] Approve Architecture & Begin Coding  |  "
+        "[yellow]\\[r][/yellow] Revise Architecture / Fields / Spec  |  "
+        "[red]\\[q][/red] Abort"
+    )
+    try:
+        choice = ask("> ").strip()
+    except (EOFError, KeyboardInterrupt):
+        return "quit", None
+
+    low = choice.lower()
+    if low in ("", "y", "yes"):
+        return "confirm", None
+    if low in ("q", "quit", "exit"):
+        return "quit", None
+    if low in ("r", "revise", "edit", "e"):
+        try:
+            feedback = ask("📝 Describe architectural / field / UI revisions needed:\n> ").strip()
+            return "revise", feedback or "User requested architecture revisions."
+        except (EOFError, KeyboardInterrupt):
+            return "quit", None
+
+    # Freeform text typed directly at prompt
+    console.print(f"   [dim]↳ Requesting architecture revision: {escape(choice)}[/dim]")
+    return "revise", choice
+
+
 def prompt_delivery_gate(
     task_id: str,
     workspace_path: Path,

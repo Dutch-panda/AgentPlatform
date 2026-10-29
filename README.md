@@ -26,12 +26,12 @@ BuildRelay is a Python CLI that coordinates an engineering team built with Pydan
 
 <img src="docs/diagrams/workflow.svg" alt="Natasha routes requests through research, design, or direct implementation, ending with Meti and validation." width="760">
 
-- **Natasha — coordinator:** produces a typed task brief, a 5-sentence intent alignment brief, and chooses the next lead. Prompts with a low-friction clarification wizard for ambiguous requirements, supports mid-way intent pivots, queries existing vault connections, and can look up official library names online.
-- **Odin — researcher:** queries vault graph metadata and external web documentation / package registries (PyPI, npm) to produce technical findings and recommended stacks. Research notes record resolved vault notes and external search-result URLs. URL checks reject selected local hostnames and literal private IP addresses; Odin has a three-call search budget per research invocation.
-- **Taghi — architect:** produces an architecture overview, dependencies, and ordered execution phases with explicit validation commands. Phases are constrained to actionable sandbox validation; conditional gates or unprovided external credentials are documented in architecture overview notes rather than active execution phases.
+- **Natasha — coordinator:** produces a typed task brief, a 5-sentence intent alignment brief, and conducts an interactive Grill-Me interview (up to 10 questions) to clarify goals, entry mechanisms, and edge cases before routing. Prompts with a low-friction clarification wizard, supports mid-way intent pivots, queries existing vault connections, and can look up official library names online.
+- **Odin — researcher:** queries vault graph metadata and external web documentation / package registries (PyPI, npm, Tavily API) to produce technical findings and recommended stacks. Research notes record resolved vault notes and external search-result URLs. Tasks marked with `--research` / `--research-only` complete cleanly after Odin without invoking design or implementation.
+- **Taghi — architect:** produces an architecture overview, user input surface specification (`input_interface_spec`), dependencies, and ordered execution phases with explicit validation commands. Conducts an architectural grill interview and presents an interactive approval gate before Meti implements. Phases are constrained to actionable sandbox validation; conditional gates or unprovided external credentials are documented in architecture overview notes rather than active execution phases.
 - **Meti — implementer:** writes code through Docker commands with live progress spinners and validates phases in order. Generates a workspace `README.md` with run/test instructions, logs execution details to `.state/task.log`, and renders a file tree and `How to Run & Test` banner. A reported success is downgraded to failure if any phase remains unvalidated.
 
-Agents run sequentially along the selected route. Research requests continue through design and implementation; design requests continue through implementation.
+Agents run sequentially along the selected route. Research requests continue through design and implementation; design requests continue through implementation. Research-only tasks complete immediately after Odin.
 
 ## Quick start
 
@@ -159,31 +159,41 @@ The first sandbox command pulls the selected container image (defaulting to `nod
 
 ## Interactive alignment and execution modes
 
-To eliminate early misunderstandings and prevent wasted model calls, BuildRelay provides an interactive alignment gate:
+To eliminate early misunderstandings and prevent wasted model calls, BuildRelay provides an interactive alignment and review pipeline:
 
-1. **Natasha's 5-Sentence Intent Brief:**
+1. **Interactive "Grill-Me" Alignment Sessions (Natasha & Taghi):**
+   - **Natasha Intent & Scope Grill:** Evaluates the request and conducts a targeted interview (up to 10 questions) exploring operational goals, user entry methods, frequency/triggers, schemas, and operational edge cases.
+   - **Taghi Architecture & Schema Grill:** Before finalizing specifications, conducts an interview (up to 10 questions) covering concrete column/field schemas, form layout, component trade-offs, and offline mock strategies.
+   - **Ergonomic Terminal Navigation:**
+     - Pressing **`[Enter]`** immediately accepts the recommended default.
+     - Pressing **`[1, 2...]`** selects a specific numbered option.
+     - Pressing **`[c]`** enters custom requirements, or type freeform text directly at the prompt.
+     - Pressing **`[a]`** accepts all remaining defaults without interruption.
+     - Pressing **`[q]`** cancels execution cleanly.
+2. **Natasha's 5-Sentence Intent Brief:**
    - **Goal:** Exactly what is being built.
    - **Features:** Key functionality in scope.
    - **Stack:** Runtime, frameworks, and base Docker image.
    - **Exclusions:** Out-of-scope or deferred requirements.
    - **Next Steps:** Target lead and first deliverable.
-2. **Smart Clarification Wizard:**
-   - If technical ambiguity is detected, Natasha presents 1–2 targeted multiple-choice questions with preselected defaults.
-   - Pressing **`[Enter]`** immediately confirms all recommended defaults with zero friction.
-   - Pressing an option number or letter (e.g. **`[2]`** or **`[b]`**) directly selects that choice.
-   - Pressing **`[e]`** allows typing a custom clarification or pivoting intent.
-3. **Execution Flags:**
-   - **Default interactive:** Runs the alignment gate before initiating research or design.
-   - **Headless mode (`-y`, `--yes`, `--auto`):** Automatically accepts recommended defaults without terminal prompts; ideal for scripting and CI.
+3. **Taghi Architectural Review & Approval Gate:**
+   - Taghi presents a detailed architecture review card displaying the system design, the concrete user input interface specification (`input_interface_spec`), required dependencies, and ordered phases.
+   - Pressing **`[Y/enter]`** approves the architecture and authorizes Meti to begin implementation.
+   - Pressing **`[r]`** allows requesting revisions to schemas, fields, or phases, triggering Taghi to regenerate the specification with user feedback.
+   - Pressing **`[q]`** aborts before container code generation.
+4. **Execution Flags:**
+   - **Default interactive:** Runs the alignment interviews and approval gates before initiating research, design, or implementation.
+   - **Headless mode (`-y`, `--yes`, `--auto`):** Automatically accepts recommended defaults without terminal prompts; ideal for scripting, background tasks, and CI.
    - **Step-by-step mode (`--step`):** Prompts for confirmation before handing off to each lead (Natasha → Odin/Taghi → Meti). If the user pivots during a step gate, downstream checkpoints in `.state/tasks.db` are safely rolled back and re-routed.
-4. **Meti Delivery Confirmation Gate:**
+   - **Research-only mode (`--research`, `--research-only`):** Completes immediately after Odin's research report and web citations, without executing Taghi or Meti.
+5. **Meti Delivery Confirmation Gate:**
    - Once all implementation phases pass validation, BuildRelay presents an interactive delivery card displaying the workspace deliverables.
    - Highlights detected **User Input Surfaces & Entry Points** (e.g. Setup wizards, Form sync scripts, Web forms, CLI input tools).
    - Pressing **`[Enter]`** or **`[c]`** accepts the delivery and marks the task complete.
    - Pressing **`[r]`** triggers Meti's live **Refinement Loop** to adjust documentation, add visual flowcharts, or generate setup scripts based on user feedback before finalizing.
-5. **Mandatory User Input Surface & Entry Point:**
+6. **Mandatory User Input Surface & Entry Point:**
    - Eliminates the "ghost pipeline" trap where an application is built without an interface for entering data.
-   - Natasha defines the input surface in the intent brief; Taghi architects a dedicated execution phase for the input surface (e.g. form generator, web UI, or interactive CLI); Meti implements and verifies the concrete entry point.
+   - Natasha defines the input surface in the intent brief; Taghi architects a dedicated execution phase and `input_interface_spec` (e.g. auto-created Google Form, web form, or interactive CLI); Meti implements and verifies the concrete entry point.
 
 ## Token usage and cost analytics
 
@@ -420,7 +430,7 @@ python -m pip install -e '.[test]'
 python scripts/validate.py
 ```
 
-The script runs the platform tests in `tests/` (197 passing unit tests); extra pytest arguments can be appended, for example `python scripts/validate.py -k validation`. Test discovery excludes generated workspaces. The suite uses Pydantic AI `TestModel` for structured outputs and `FunctionModel` for scripted tool calls, blocks real model requests, replaces Docker and graph extraction, and writes artifacts in temporary directories. It covers routing contracts, project links, explicit dependency injection, graph retrieval, source resolution and report references, phase validation, bounded recovery, container isolation invariants, Docker failure feedback, ledger persistence, resume behavior, onboarding, model tiers, token estimates, alignment gates, and mocked web search; it does not assess live model routing quality.
+The script runs the platform tests in `tests/` (212 passing unit tests); extra pytest arguments can be appended, for example `python scripts/validate.py -k validation`. Test discovery excludes generated workspaces. The suite uses Pydantic AI `TestModel` for structured outputs and `FunctionModel` for scripted tool calls, blocks real model requests, replaces Docker and graph extraction, and writes artifacts in temporary directories. It covers routing contracts, project links, explicit dependency injection, graph retrieval, source resolution and report references, phase validation, bounded recovery, container isolation invariants, Docker failure feedback, ledger persistence, resume behavior, onboarding, model tiers, token estimates, alignment gates, and mocked web search; it does not assess live model routing quality.
 
 #### Opt-in Integration Smoke Checks (Real Docker & Graphify)
 

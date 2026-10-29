@@ -189,7 +189,15 @@ async def run_task(
         record.status = 'PENDING'
         ledger.save(record)
         natasha_model = await resolve_agent_model(pipeline_models["natasha"])
-        brief = await NatashaRouter(model_name=natasha_model).coordinate_request(record.prompt, task_id, project_id=project)
+        router = NatashaRouter(model_name=natasha_model)
+        brief = await router.coordinate_request(record.prompt, task_id, project_id=project)
+        if not auto and sys.stdin.isatty() and getattr(brief, "clarification_questions", None):
+            review_fn = getattr(router, "conduct_grill_session", None)
+            if asyncio.iscoroutinefunction(review_fn):
+                brief, quit_requested = await review_fn(brief, auto=auto, project_id=project)
+                if quit_requested:
+                    print_agent("orchestrator", "Task execution cancelled by user during Natasha grill.")
+                    sys.exit(0)
         record.brief = brief
         if getattr(brief, "token_usage", None):
             brief.token_usage["model"] = str(pipeline_models["natasha"])
@@ -286,7 +294,17 @@ async def run_task(
             record.status = 'ARCHITECTING'
             ledger.save(record)
             taghi_model = await resolve_agent_model(pipeline_models["taghi"])
-            spec = await TaghiArchitect(model_name=taghi_model).create_specification(task_id, design_context, project_id=project)
+            architect = TaghiArchitect(model_name=taghi_model)
+            spec = await architect.create_specification(task_id, design_context, project_id=project)
+            if not auto and sys.stdin.isatty():
+                review_fn = getattr(architect, "conduct_architectural_review", None)
+                if asyncio.iscoroutinefunction(review_fn):
+                    spec, quit_requested = await review_fn(
+                        spec, task_id, design_context, auto=auto, project_id=project
+                    )
+                    if quit_requested:
+                        print_agent("orchestrator", "Task execution cancelled by user during Taghi architectural review.")
+                        sys.exit(0)
             if getattr(spec, "token_usage", None):
                 spec.token_usage["model"] = str(pipeline_models["taghi"])
                 record.token_usage["taghi"] = spec.token_usage

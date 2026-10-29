@@ -40,7 +40,9 @@ def print_session_banner(project_id: str, workspace_path: Path) -> None:
         "[bold white]Session Commands:[/bold white]\n"
         "  [cyan]/profile[/cyan]      View active data schema, input interface, and task history\n"
         "  [cyan]/env[/cyan]          View or configure project-specific credentials & IDs\n"
-        "  [cyan]/test[/cyan]         Execute local tests or Tier 2 verification in this workspace\n"
+        "  [cyan]/verify[/cyan]       Run Tier 2 live verification smoke test against real services\n"
+        "  [cyan]/preview[/cyan]      Launch local web server to preview generated forms and UIs\n"
+        "  [cyan]/test[/cyan]         Execute local container unit tests in this workspace\n"
         "  [cyan]/help[/cyan]         Show available commands\n"
         "  [cyan]/exit[/cyan]         Exit session [dim](or Ctrl+D / quit)[/dim]\n\n"
         "[dim]Enter any prompt or revision instruction to plan, architect, and execute within this project.[/dim]"
@@ -152,6 +154,21 @@ async def run_project_session(
                         console.print(f"  [bold green]✔ Saved {escape(k)} to project .env[/bold green]")
             except (EOFError, KeyboardInterrupt):
                 pass
+            continue
+
+        # Live Verification command (Tier 2 smoke test)
+        if cmd in ("/verify", "verify"):
+            from tools.live_verifier import run_live_verification
+            run_live_verification(project_id, workspace_root=workspace_root)
+            continue
+
+        # UI Preview server command
+        if cmd in ("/preview", "preview"):
+            from tools.ui_preview import start_preview_server
+            try:
+                start_preview_server(project_id, workspace_root=workspace_root, run_until_interrupted=True)
+            except Exception as e:
+                console.print(f"[bold red]Preview server error:[/bold red] {e}")
             continue
 
         # Test command

@@ -415,6 +415,9 @@ async def main() -> None:
     parser.add_argument('prompt', nargs='?', help='Task description or prompt')
     parser.add_argument('--config', action='store_true', help='Launch interactive onboarding & configuration wizard')
     parser.add_argument('--session', nargs='?', const='', help='Launch interactive REPL project session')
+    parser.add_argument('--verify', nargs='?', const='', help='Execute Tier 2 live verification smoke test for a project')
+    parser.add_argument('--preview', nargs='?', const='', help='Launch local web preview server for project input surfaces')
+    parser.add_argument('--port', type=int, default=8080, help='Port for local UI preview server (default 8080)')
     parser.add_argument('--project', type=validate_project_id, help='Parent project ID')
     parser.add_argument('--resume', type=validate_task_id, metavar='TASK_ID', help='Resume a saved local task')
     parser.add_argument('--model', help='Model identifier (e.g. openai:gpt-4o, anthropic:claude-3-5-sonnet-latest)')
@@ -455,6 +458,48 @@ async def main() -> None:
             auto=args.auto,
             step=args.step,
         )
+        return
+
+    # Live verification runner: python main.py --verify [PROJECT_ID] or python main.py verify [PROJECT_ID]
+    is_verify = False
+    verify_proj = None
+    if getattr(args, "verify", None) is not None:
+        is_verify = True
+        verify_proj = args.verify or args.project or "default-project"
+    elif args.prompt and args.prompt.strip().lower().startswith("verify"):
+        is_verify = True
+        parts = args.prompt.strip().split()
+        verify_proj = parts[1] if len(parts) > 1 else (args.project or "default-project")
+
+    if is_verify:
+        from tools.live_verifier import run_live_verification
+        result = run_live_verification(verify_proj)
+        if not result.get("success"):
+            sys.exit(1)
+        return
+
+    # Local UI preview server: python main.py --preview [PROJECT_ID] or python main.py preview [PROJECT_ID]
+    is_preview = False
+    preview_proj = None
+    if getattr(args, "preview", None) is not None:
+        is_preview = True
+        preview_proj = args.preview or args.project or "default-project"
+    elif args.prompt and args.prompt.strip().lower().startswith("preview"):
+        is_preview = True
+        parts = args.prompt.strip().split()
+        preview_proj = parts[1] if len(parts) > 1 else (args.project or "default-project")
+
+    if is_preview:
+        from tools.ui_preview import start_preview_server
+        try:
+            start_preview_server(
+                project_id=preview_proj,
+                port=getattr(args, "port", 8080),
+                open_browser=not args.auto and sys.stdin.isatty(),
+                run_until_interrupted=True,
+            )
+        except KeyboardInterrupt:
+            pass
         return
 
     if args.resume and (args.prompt is not None or args.project is not None):

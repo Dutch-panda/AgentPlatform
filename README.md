@@ -252,6 +252,47 @@ Natasha and Odin have documentation search tools; Odin also has package registry
 - **Workspace File Tree:** Renders a clean `rich.tree.Tree` showing generated project files while filtering noisy build artifacts (`__pycache__`, `.git`, `.venv`).
 - **How to Run & Test Banner:** Displays prominent quickstart commands based on the detected project stack (e.g. Python, Node.js, Rust, Go).
 
+## Project REPL, Live Verification, and UI Preview
+
+To manage real-world business automations and APIs iteratively, BuildRelay provides an interactive project session REPL alongside dedicated Tier 2 verification and preview commands:
+
+### 1. Interactive Project REPL Session (`buildrelay session`)
+Launch a continuous development session tied to a permanent project workspace:
+
+```bash
+python main.py session sales-sync
+# Or:
+python main.py --session sales-sync
+```
+
+Inside the session REPL, developers can refine architectures, plan next features, or execute commands:
+- **`/profile`**: Inspect living project memory (`PROJECT_PROFILE.md`), active data schemas, entry surfaces, and execution history.
+- **`/env`**: View or securely configure project-specific credentials (`.env`, mode `0600`, gitignored).
+- **`/verify`**: Run the Tier 2 live verification smoke test against real services on the host.
+- **`/preview`**: Spin up a local HTTP preview server to interact with generated HTML entry forms.
+- **`/test`**: Run local container unit tests inside the Docker sandbox.
+- **`/exit`**: Exit session.
+
+### 2. Live Verification Runner (`buildrelay verify`)
+Execute Tier 2 live verification smoke scripts (`scripts/verify_live.py`, `scripts/verify.js`, or Apps Script direct tests) with real credentials on the host:
+
+```bash
+python main.py --verify sales-sync
+# Or:
+python main.py verify sales-sync
+```
+
+### 3. Local UI & Input Preview (`buildrelay preview`)
+Launch a zero-dependency local preview server serving all user entry forms and dashboards (`form.html`, `web-entry.html`, `index.html`):
+
+```bash
+python main.py --preview sales-sync --port 8080
+# Or:
+python main.py preview sales-sync
+```
+
+Opens your default web browser to the primary entry surface and provides clean access URLs for team review.
+
 ## Resume a task
 
 The CLI creates a permanent task ID before routing and prints it for later use. Each run is saved in a local SQLite ledger at `.state/tasks.db`. If a workflow fails or is interrupted, resume it from the same repository root:
